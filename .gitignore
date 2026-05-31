@@ -1,0 +1,24 @@
+# Environments
+.env
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Spark / Big Data
+spark-warehouse/
+metastore_db/
+derby.log
+*.crc
+
+# OS generated files
+.DS_Store
+Thumbs.db
