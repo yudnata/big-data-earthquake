@@ -38,10 +38,17 @@ source ~/.bashrc
 ```
 
 ## 5. Buat Virtual Environment Python
-Isolasi *library* kodingan Anda agar rapi dan bersih:
+Isolasi *library* kodingan Anda agar rapi dan bersih. **PENTING**: Pindah ke folder project Anda terlebih dahulu sebelum menginstal file requirements.
 ```bash
 python3 -m venv ~/spark-env
 source ~/spark-env/bin/activate
+
+# Masuk ke direktori project Anda di WSL
+# (Sesuaikan path ini dengan lokasi folder di komputer Anda / Laptop B teman Anda)
+# Contoh jika di Drive C: cd /mnt/c/nama_folder
+# Contoh jika di Drive E dan ada spasi (wajib pakai tanda kutip ganda): 
+# cd "/mnt/e/Tugas_Kuliah/SEM 6/Bigdata/Gempa/big-data-usgs-earthquake"
+cd /mnt/c/Users/yudhi/Documents/PROJECT/big-data
 
 # Install PySpark dan library requirement dari project
 pip install pyspark
