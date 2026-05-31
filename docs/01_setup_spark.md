@@ -37,23 +37,35 @@ echo 'export PATH=$PATH:$JAVA_HOME/bin:$SPARK_HOME/bin:$SPARK_HOME/sbin' >> ~/.b
 source ~/.bashrc
 ```
 
-## 5. Buat Virtual Environment Python
-Isolasi *library* kodingan Anda agar rapi dan bersih. **PENTING**: Pindah ke folder project Anda terlebih dahulu sebelum menginstal file requirements.
-```bash
-python3 -m venv ~/spark-env
-source ~/spark-env/bin/activate
+## 5. Salin Project ke Filesystem Linux & Buat Virtual Environment
+Agar VS Code berjalan lebih cepat, tidak lambat mendeteksi Python interpreter, dan terhindar dari warning filesystem, **SANGAT DISARANKAN** untuk menyalin folder project dari Windows ke dalam filesystem asli Linux WSL (`~/`):
 
-# Masuk ke direktori project Anda di WSL
-# (Sesuaikan path ini dengan lokasi folder di komputer Anda / Laptop B teman Anda)
-# Contoh jika di Drive C: cd /mnt/c/nama_folder
-# Contoh jika di Drive E dan ada spasi (wajib pakai tanda kutip ganda): 
-# cd "/mnt/e/Tugas_Kuliah/SEM 6/Bigdata/Gempa/big-data-usgs-earthquake"
-cd /mnt/c/Users/yudhi/Documents/PROJECT/big-data
+1. Jalankan perintah ini di terminal WSL (Ubuntu) untuk menyalin folder project ke direktori home Linux:
+   ```bash
+   # Untuk Laptop A (Sesuaikan path asal Windows Anda):
+   cp -r /mnt/c/Users/yudhi/Documents/PROJECT/big-data ~/big-data
+   
+   # Untuk Laptop B / Teman Anda (Sesuaikan path asal Windows-nya):
+   # cp -r "/mnt/e/Tugas_Kuliah/SEM 6/Bigdata/Gempa/big-data-usgs-earthquake" ~/big-data
+   ```
 
-# Install PySpark dan library requirement dari project
-pip install pyspark
-pip install -r requirements.txt
-```
+2. Masuk ke direktori project yang baru di dalam filesystem Linux:
+   ```bash
+   cd ~/big-data
+   ```
+
+3. Buat dan aktifkan Virtual Environment Python:
+   ```bash
+   python3 -m venv ~/spark-env
+   source ~/spark-env/bin/activate
+   ```
+
+4. Install library requirement project (ditambah `ipykernel` untuk Jupyter Notebook):
+   ```bash
+   pip install pyspark ipykernel
+   pip install -r requirements.txt
+   ```
+
 
 ---
 
@@ -73,14 +85,65 @@ start-worker.sh spark://192.168.1.10:7077
 
 **Melihat Hasil Penggabungan:** Buka browser di **`http://192.168.1.10:8080`**. Anda akan melihat **2 Worker** hidup dan nilai *Total Cores* serta *Memory* otomatis menjadi gabungan 2 laptop!
 
----
-
 ## 7. Mulai Koding di VSCode (Hanya di Laptop A)
 Sekarang saatnya Anda sebagai "bos" memerintah *cluster* tersebut:
-1. Buka VSCode di Windows Anda.
-2. Install ekstensi **WSL**, **Python**, dan **Jupyter** (semuanya buatan Microsoft).
-3. Tekan `Ctrl + Shift + P` → Pilih **`WSL: Open Folder in WSL`** → Pilih folder proyek ini.
+1. Buka VSCode/Antigravity IDE di Windows Anda.
+2. Pastikan sudah menginstal ekstensi **WSL**, **Python**, dan **Jupyter**.
+3. Tekan `Ctrl + Shift + P` → Pilih **`WSL: Open Folder in WSL`** (atau ketik `code .` di terminal WSL Anda) → Pilih folder proyek ini.
 4. Buka file Jupyter Notebook `notebooks/02_data_preprocessing.ipynb`.
 5. Di ujung kanan atas (Pilih Kernel), arahkan ke file Python di *virtual environment* Anda:
    `/home/<nama-user-wsl-anda>/spark-env/bin/python3`
-6. Silakan jalankan *Cell*-nya (*Play*)! Spark Master di Laptop A akan secara instan membagi beban data JSON tersebut, mengirimkan setengahnya ke Laptop B, lalu menggabungkannya kembali!
+6. Silakan jalankan *Cell*-nya (*Play*)!
+
+---
+
+## 🛠️ TROUBLESHOOTING (PANDUAN MENGATASI ERROR LAPANGAN)
+
+Berikut adalah ringkasan solusi dari kendala yang sering terjadi selama proses setup cluster:
+
+### 1. Terminal WSL Tidak Berwarna & Muncul Simbol `#` (Root User)
+* **Gejala**: Teks terminal hanya berwarna putih, diakhiri simbol `#`, dan user tertulis `root@...`.
+* **Penyebab**: WSL dibuka melalui PowerShell Windows yang di-run "As Administrator", sehingga otomatis masuk sebagai super user.
+* **Solusi**: Jangan gunakan PowerShell Administrator untuk masuk ke WSL. Buka langsung aplikasi **Ubuntu** dari Start Menu Windows agar masuk sebagai user biasa (ditandai dengan simbol `$` dan terminal kembali berwarna).
+
+### 2. Error `Command 'wsl' not found` atau `hostname -I` Tidak Jalan
+* **Gejala**: Muncul pesan command not found saat mengetik perintah.
+* **Penyebab**: Tertukar antara terminal Windows dan Linux. Perintah `wsl --shutdown` adalah perintah **Windows** (jalankan di PowerShell biasa), sedangkan `hostname -I` adalah perintah **Linux** (jalankan di WSL/Ubuntu).
+
+### 3. Masalah Koneksi Ping Antar Laptop yang "Stuck" (Gantung)
+* **Gejala**: Saat melakukan `ping <IP_Master>`, terminal menggantung tanpa ada balasan.
+* **Penyebab**: Windows Defender Firewall memblokir koneksi masuk, atau Wi-Fi Anda memblokir koneksi lokal (Client Isolation).
+* **Solusi A (Mirrored Mode & Buka Firewall)**:
+  1. Di Windows, buat file `C:\Users\<Username>\.wslconfig` berisi:
+     ```ini
+     [wsl2]
+     networkingMode=mirrored
+     ```
+  2. Matikan WSL dengan menjalankan `wsl --shutdown` di PowerShell Windows.
+  3. Buka **PowerShell Windows** (Run as Administrator) di **Laptop Master (Laptop A)**, jalankan perintah ini untuk membuka port Spark & Mongo:
+     ```powershell
+     New-NetFirewallRule -Name "Allow_Ping" -DisplayName "Allow Ping" -Protocol ICMPv4 -Action Allow
+     New-NetFirewallRule -DisplayName "Spark Master" -Direction Inbound -LocalPort 7077 -Protocol TCP -Action Allow
+     New-NetFirewallRule -DisplayName "Spark WebUI" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow
+     New-NetFirewallRule -DisplayName "MongoDB" -Direction Inbound -LocalPort 27017 -Protocol TCP -Action Allow
+     ```
+* **Solusi B (Tailscale)**: Instal **Tailscale** di Windows kedua laptop, login dengan akun yang sama, lalu gunakan IP berawalan `100.x.x.x` milik Laptop A.
+
+### 4. Ekstensi WSL Tidak Muncul di Antigravity IDE (VS Codium)
+* **Gejala**: Mencari ekstensi "WSL" di marketplace tidak membuahkan hasil karena editor menggunakan marketplace Open VSX.
+* **Solusi A (Membuka via Terminal)**: Masuk ke folder project di WSL, lalu ketik perintah `code .` untuk otomatis menghubungkan editor ke WSL.
+* **Solusi B (Ganti Source Marketplace)**: Masuk ke Editor Settings, ganti URL Marketplace menjadi:
+  * **Gallery URL**: `https://marketplace.visualstudio.com/_apis/public/gallery`
+  * **Item URL**: `https://marketplace.visualstudio.com/items`
+
+### 5. Error `Running cells requires the ipykernel package`
+* **Gejala**: Jupyter Notebook tidak mau jalan dan meminta instalasi `ipykernel`.
+* **Penyebab**: Kernel Jupyter belum memiliki library kernel penghubung, atau Anda salah memilih interpreter Python bawaan sistem (`/usr/bin/python3`).
+* **Solusi**: 
+  1. Pastikan virtual environment aktif (`(spark-env)` di kiri prompt).
+  2. Instal `ipykernel` di terminal WSL Anda:
+     ```bash
+     pip install ipykernel
+     ```
+  3. Di VSCode, ubah kernel (Select Kernel) dan arahkan ke path virtual environment yang benar: `/home/<user-wsl-anda>/spark-env/bin/python3`.
+
