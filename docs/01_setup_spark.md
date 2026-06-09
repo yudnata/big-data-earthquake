@@ -79,8 +79,9 @@ start-worker.sh spark://192.168.1.10:7077
 ```
 
 **Langkah di Laptop B (Sebagai Pekerja Bantuan):**
+Ketahui IP Laptop B (misal: `192.168.1.11`) dengan mengetik `hostname -I`. Jalankan worker dengan mendefinisikan `--host` IP Laptop B tersebut agar Master dapat mengenali dan mengirim task balik ke Laptop B:
 ```bash
-start-worker.sh spark://192.168.1.10:7077
+start-worker.sh spark://192.168.1.10:7077 --host 192.168.1.11
 ```
 
 **Melihat Hasil Penggabungan:** Buka browser di **`http://192.168.1.10:8080`**. Anda akan melihat **2 Worker** hidup dan nilai *Total Cores* serta *Memory* otomatis menjadi gabungan 2 laptop!
@@ -110,22 +111,34 @@ Berikut adalah ringkasan solusi dari kendala yang sering terjadi selama proses s
 * **Gejala**: Muncul pesan command not found saat mengetik perintah.
 * **Penyebab**: Tertukar antara terminal Windows dan Linux. Perintah `wsl --shutdown` adalah perintah **Windows** (jalankan di PowerShell biasa), sedangkan `hostname -I` adalah perintah **Linux** (jalankan di WSL/Ubuntu).
 
-### 3. Masalah Koneksi Ping Antar Laptop yang "Stuck" (Gantung)
-* **Gejala**: Saat melakukan `ping <IP_Master>`, terminal menggantung tanpa ada balasan.
-* **Penyebab**: Windows Defender Firewall memblokir koneksi masuk, atau Wi-Fi Anda memblokir koneksi lokal (Client Isolation).
-* **Solusi A (Mirrored Mode & Buka Firewall)**:
-  1. Di Windows, buat file `C:\Users\<Username>\.wslconfig` berisi:
+### 3. Masalah Koneksi Ping / Registrasi Worker yang "Stuck" (Gantung)
+* **Gejala**: Saat melakukan `ping <IP_Master>`, terminal menggantung tanpa ada balasan, atau laptop worker (Laptop B) gagal masuk ke daftar worker Master.
+* **Penyebab**: Windows Defender Firewall memblokir koneksi masuk, profil Wi-Fi diset ke Public (memblokir koneksi lokal), atau WSL Laptop B masih dalam mode NAT.
+* **Solusi A (Mirrored Mode, Set Wi-Fi Private & Buka Firewall)**:
+  1. **[Wajib di KEDUA Laptop]** Buat file `C:\Users\<Username>\.wslconfig` di Windows Laptop A & Laptop B berisi:
      ```ini
      [wsl2]
      networkingMode=mirrored
      ```
-  2. Matikan WSL dengan menjalankan `wsl --shutdown` di PowerShell Windows.
-  3. Buka **PowerShell Windows** (Run as Administrator) di **Laptop Master (Laptop A)**, jalankan perintah ini untuk membuka port Spark & Mongo:
+  2. **[Wajib di KEDUA Laptop]** Matikan WSL dengan menjalankan `wsl --shutdown` di PowerShell Windows agar konfigurasi baru aktif.
+  3. **[Wajib di KEDUA Laptop]** Ubah profil jaringan Wi-Fi menjadi **Private** (Settings Windows -> Network & Internet -> Wi-Fi -> klik nama Wi-Fi -> pilih **Private Network**).
+  4. Buka **PowerShell Windows** (Run as Administrator) di **Laptop Master (Laptop A)**, jalankan perintah ini untuk membuka port Spark, Driver, Block Manager, & Mongo:
      ```powershell
      New-NetFirewallRule -Name "Allow_Ping" -DisplayName "Allow Ping" -Protocol ICMPv4 -Action Allow
      New-NetFirewallRule -DisplayName "Spark Master" -Direction Inbound -LocalPort 7077 -Protocol TCP -Action Allow
      New-NetFirewallRule -DisplayName "Spark WebUI" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow
+     New-NetFirewallRule -DisplayName "Spark Driver" -Direction Inbound -LocalPort 7078 -Protocol TCP -Action Allow
+     New-NetFirewallRule -DisplayName "Spark BlockManager" -Direction Inbound -LocalPort 7079 -Protocol TCP -Action Allow
      New-NetFirewallRule -DisplayName "MongoDB" -Direction Inbound -LocalPort 27017 -Protocol TCP -Action Allow
+     ```
+  5. **[Penting] Inisialisasi SparkSession di Python (Laptop A)** harus menyertakan port driver dan block manager yang konsisten dengan firewall di atas:
+     ```python
+     spark = SparkSession.builder \
+         .appName("EarthquakeAnalysis") \
+         .master("spark://192.168.1.10:7077") \
+         .config("spark.driver.port", "7078") \
+         .config("spark.blockManager.port", "7079") \
+         .getOrCreate()
      ```
 * **Solusi B (Tailscale)**: Instal **Tailscale** di Windows kedua laptop, login dengan akun yang sama, lalu gunakan IP berawalan `100.x.x.x` milik Laptop A.
 
