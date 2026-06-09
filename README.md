@@ -21,7 +21,8 @@ Semua kode program diletakkan langsung di dalam Jupyter Notebook agar mudah dipr
 │
 ├── notebooks/                 # Jupyter Notebooks (Tempat Kode Utama)
 │   ├── 01_data_collection.ipynb     # Pipeline Penarikan Data dari USGS API ke MongoDB
-│   └── 02_data_preprocessing.ipynb  # Pipeline Preprocessing Data di Cluster PySpark
+│   ├── 02_data_preprocessing.ipynb  # Pipeline Preprocessing Data di Cluster PySpark
+│   └── 03_data_analysis.ipynb       # Pipeline EDA, Elbow Method, K-Means, dan Bisecting K-Means
 │
 ├── .env                       # Konfigurasi Database & Port Spark
 ├── requirements.txt           # Daftar Library Python yang Dibutuhkan
@@ -51,3 +52,9 @@ Silakan ikuti panduan lengkapnya secara berurutan sesuai nomor file di dalam fol
 ### Tahap 4: Preprocessing & Pembersihan Data
 * Buka dan jalankan seluruh cell di [notebooks/02_data_preprocessing.ipynb](file:///c:/Users/yudhi/Documents/PROJECT/big-data/notebooks/02_data_preprocessing.ipynb).
 * Proses ini akan berjalan di atas PySpark Cluster (menggunakan performa gabungan 2 laptop) untuk membersihkan data, menyaring nama negara menjadi standar internasional, melakukan koordinat kartesius 3D, dan penskalaan fitur.
+
+### Tahap 5: Data Analysis & Clustering
+* Buka dan jalankan seluruh cell di [notebooks/03_data_analysis.ipynb](file:///c:/Users/yudhi/Documents/PROJECT/big-data/notebooks/03_data_analysis.ipynb).
+* Notebook ini memuat EDA berbasis SparkSQL, visualisasi tren dan distribusi, Elbow Method, K-Means, Bisecting K-Means, serta evaluasi Silhouette Score.
+* Hasil tahap ini disimpan terpisah ke MongoDB melalui `eda_summary`, `model_metrics`, `kmeans_results`, dan `bisecting_results`.
+* Koleksi hasil cluster hanya menyimpan kolom inti dan label cluster; fitur internal seperti `x`, `y`, `z`, dan `scaled_features` tidak disimpan.
