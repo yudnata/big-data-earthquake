@@ -22,13 +22,20 @@ Sebagai perbandingan algoritma, kita menggunakan Bisecting K-Means, yang bekerja
 
 ## Prerequisites
 - Data yang sudah dibersihkan dan memiliki `scaled_features` dari MongoDB (`clean_earthquakes`).
+- Notebook yang digunakan: [notebooks/03_data_analysis.ipynb](file:///c:/Users/yudhi/Documents/PROJECT/big-data/notebooks/03_data_analysis.ipynb).
 
 ## Rencana Eksekusi (Future Work)
 - Meload dataset `clean_earthquakes` dari MongoDB.
 - Menerapkan iterasi algoritma evaluasi (Elbow & Silhouette).
 - Fitting `KMeansModel` & `BisectingKMeansModel`.
+- Menyimpan ringkasan EDA ke dalam MongoDB collection `eda_summary`.
+- Menyimpan metrik evaluasi model ke dalam MongoDB collection `model_metrics`.
 - Menyimpan nilai hasil prediksi ke dalam MongoDB collections: `kmeans_results` dan `bisecting_results`.
+
+## Catatan Metrik
+- Untuk clustering, metrik yang relevan adalah `Silhouette Score`, `WCSS` atau cost, dan interpretasi karakteristik cluster.
+- `Accuracy`, `F1`, `precision`, `recall`, dan `confusion matrix` tidak dipakai karena tidak ada label kelas aktual pada clustering.
 
 ## Troubleshooting Konseptual
 - **Konvergensi yang Lambat**: Mengingat jumlah iterasi dari algoritma clustering di Spark, optimisasi hyperparameter (seperti `maxIter` dan `tol`) diperlukan jika proses memakan waktu terlalu lama.
-- **Penyimpanan Hasil**: Model MLlib seringkali menghasilkan tipe Spark Vector pada outputnya. Pastikan tipe Vector ini di-cast ke standard `ArrayType(DoubleType())` atau List biasa sebelum disimpan ke MongoDB agar format dokumen kompatibel (BSON).
+- **Penyimpanan Hasil**: Model MLlib seringkali menghasilkan tipe Spark Vector pada outputnya. Pastikan tipe Vector ini di-cast ke standard `ArrayType(DoubleType())` atau List biasa sebelum disimpan ke MongoDB agar format dokumen kompatibel (BSON). Fitur internal seperti `x`, `y`, `z`, dan `scaled_features` dipakai hanya untuk training dan tidak perlu disimpan di collection hasil.
