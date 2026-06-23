@@ -1,41 +1,35 @@
 # 03 Data Analysis
 
 ## Tujuan
-Dokumen ini mendeskripsikan kerangka konseptual untuk tahap Analisis Data dan proses Clustering menggunakan PySpark MLlib. Ini menjelaskan pendekatan ilmiah dalam menentukan pengelompokan (zona) rawan gempa berdasarkan data yang telah di-preprocess.
+Dokumen ini mendeskripsikan kerangka konseptual untuk tahap Analisis Data (*EDA*) dan proses *Pure Spatial Clustering* menggunakan PySpark MLlib. Tujuannya adalah memetakan batas nyata dari cincin api (*Ring of Fire*) dunia hanya dengan berbekal data titik persebaran gempa bumi EMSC.
 
 ## Deskripsi
-Analisis dibagi menjadi dua bagian: Exploratory Data Analysis (EDA) dan Machine Learning Modeling.
+Analisis dibagi menjadi dua pilar: *Exploratory Data Analysis* (EDA) dan *Pure Spatial Machine Learning Modeling*.
 
 ### Exploratory Data Analysis (EDA)
-EDA berfungsi untuk memahami distribusi dari magnitudo dan kedalaman gempa. EDA mencakup:
-- **Analisis Distribusi Frekuensi**: Frekuensi gempa bumi terhadap tingkat magnitudonya.
-- **Korelasi Spasial**: Pemeriksaan sekilas terhadap persebaran koordinat lat/long sebelum dilakukan clustering.
-- **Outliers**: Pendeteksian gempa di kedalaman atau skala yang ekstrem meskipun sudah difilter pada batas wajar sebelumnya.
+EDA berfungsi untuk memahami struktur populasi gempa dari EMSC:
+- **Agregasi Geografis**: Mengevaluasi top 10 negara/wilayah paling banyak mengalami gempa, di mana Indonesia mendominasi sebagai Raja Gempa akibat posisinya di atas 3 lempeng utama.
+- **Outliers**: Pendeteksian gempa di kedalaman (*depth*) ekstrem menggunakan metrik *descriptive statistics*.
 
-### K-Means Clustering
-Model utama yang digunakan adalah K-Means yang mempartisi lokasi gempa ke dalam *K* klaster dengan meminimalkan jarak *within-cluster sum of squares*.
-- **Elbow Method**: Digunakan untuk mengevaluasi parameter K terbaik. Kita menghitung *Sum of Squared Errors* (SSE) untuk nilai K yang bervariasi (misal k=2 hingga k=10) dan mencari titik "siku" yang menunjukkan *trade-off* terbaik.
-- **Silhouette Score**: Metrik evaluasi sekunder yang menilai seberapa baik sebuah observasi tergabung dengan clusternya sendiri dibandingkan klaster lain.
+### Pure Spatial Clustering (K-Means)
+Model K-Means ditugaskan untuk mempartisi lokasi gempa murni berdasar koordinat ruang (`x, y, z`) tanpa diintervensi oleh besaran `magnitudo` maupun `kedalaman`.
+- **Geographical Undersampling**: K-Means memiliki kelemahan *density bias*. Karena jumlah gempa di Indonesia bisa menembus belasan ribu sedangkan negara Afrika hanya ratusan, kita membatasi maksimal titik latih per negara sebanyak 5.000 titik. Hal ini memaksa K-Means belajar memetakan seluruh bumi secara adil.
+- **Elbow Method Lanjutan**: Titik "siku" dicari dengan mengevaluasi hingga 15 (*K=16*) klaster. Ini dilakukan karena lempeng tektonik utama bumi jumlahnya lebih dari sekadar angka kecil.
+- **Silhouette Score**: Evaluator yang menembus skor impresif (0.76+) berkat dihentikannya penggunaan *StandardScaler* pada geometri bola.
 
-### Bisecting K-Means Clustering
-Sebagai perbandingan algoritma, kita menggunakan Bisecting K-Means, yang bekerja dengan membagi semua data dalam satu klaster secara hierarkis (divisive hierarchical clustering) menggunakan prinsip dasar K-Means biasa. Seringkali metode ini lebih stabil saat menghasilkan ukuran cluster yang berimbang pada dataset yang sangat besar.
+### Evaluasi Bisecting K-Means
+- **Bisecting K-Means**: Algoritma komparator ini membelah *cluster* dari atas ke bawah. Meskipun kinerjanya bagus (0.70+), namun masih sedikit di bawah dominasi K-Means konvensional.
 
 ## Prerequisites
-- Data yang sudah dibersihkan dan memiliki `scaled_features` dari MongoDB (`clean_earthquakes`).
-- Notebook yang digunakan: [notebooks/03_data_analysis.ipynb](file:///c:/Users/yudhi/Documents/PROJECT/big-data/notebooks/03_data_analysis.ipynb).
+- Data yang sudah dibersihkan (`clean_earthquakes_emsc`).
+- Notebook yang digunakan: `notebooks2/03_data_analysis.ipynb`.
 
 ## Rencana Eksekusi (Future Work)
-- Meload dataset `clean_earthquakes` dari MongoDB.
-- Menerapkan iterasi algoritma evaluasi (Elbow & Silhouette).
-- Fitting `KMeansModel` & `BisectingKMeansModel`.
-- Menyimpan ringkasan EDA ke dalam MongoDB collection `eda_summary`.
-- Menyimpan metrik evaluasi model ke dalam MongoDB collection `model_metrics`.
-- Menyimpan nilai hasil prediksi ke dalam MongoDB collections: `kmeans_results` dan `bisecting_results`.
-
-## Catatan Metrik
-- Untuk clustering, metrik yang relevan adalah `Silhouette Score`, `WCSS` atau cost, dan interpretasi karakteristik cluster.
-- `Accuracy`, `F1`, `precision`, `recall`, dan `confusion matrix` tidak dipakai karena tidak ada label kelas aktual pada clustering.
+- Meload dataset `clean_earthquakes_emsc` dari MongoDB.
+- Menerapkan iterasi algoritma evaluasi (Elbow & Silhouette) dari K=2 hingga K=15.
+- Menyimpan ringkasan EDA ke dalam MongoDB collection `eda_summary_emsc`.
+- Menyimpan metrik evaluasi model ke `model_metrics_emsc`.
+- Menyimpan nilai prediksi pemetaan lempeng ke `kmeans_results_emsc` dan `bisecting_results_emsc`.
 
 ## Troubleshooting Konseptual
-- **Konvergensi yang Lambat**: Mengingat jumlah iterasi dari algoritma clustering di Spark, optimisasi hyperparameter (seperti `maxIter` dan `tol`) diperlukan jika proses memakan waktu terlalu lama.
-- **Penyimpanan Hasil**: Model MLlib seringkali menghasilkan tipe Spark Vector pada outputnya. Pastikan tipe Vector ini di-cast ke standard `ArrayType(DoubleType())` atau List biasa sebelum disimpan ke MongoDB agar format dokumen kompatibel (BSON). Fitur internal seperti `x`, `y`, `z`, dan `scaled_features` dipakai hanya untuk training dan tidak perlu disimpan di collection hasil.
+- **Penyimpanan Hasil Model**: Model MLlib seringkali menghasilkan tipe Spark Vector pada outputnya. Pastikan *array/vector features* tersebut di-*drop* sebelum menyimpan kembali datanya ke MongoDB untuk menghindari *error* format dokumen BSON.
