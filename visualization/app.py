@@ -124,8 +124,7 @@ menu = st.sidebar.radio(
     [
         "Ringkasan & Tren Seismik", 
         "Peta Zona Rawan Spasial (Ring of Fire)", 
-        "Peta & Profil Bahaya Gempa (Hazard)",
-        "Peta & Profil Risiko Negara (Country Risk)"
+        "Peta & Profil Bahaya Gempa (Hazard)"
     ]
 )
 
@@ -507,104 +506,3 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
                 </div>
                 """, unsafe_allow_html=True)
 
-# --- PAGE 4: COUNTRY RISK MAP & PROFILING ---
-elif menu == "Peta & Profil Risiko Negara (Country Risk)":
-    st.title("Peta & Profil Risiko Negara (Country Risk)")
-    st.write("Mengelompokkan negara-negara di dunia berdasarkan total frekuensi kejadian, rata-rata kedalaman, rata-rata magnitudo, dan magnitudo maksimum gempa bumi.")
-    
-    if country_risk_df.empty:
-        st.warning("Data Country Risk kosong. Pastikan Anda sudah menjalankan notebook `03_data_analysis_country_risk.ipynb`.")
-    else:
-        events_df = spatial_df.copy()
-        
-        merged_events = pd.merge(
-            events_df, 
-            country_risk_df[['country', 'kmeans_cluster']], 
-            on='country', 
-            how='inner', 
-            suffixes=('', '_country')
-        )
-        
-        # Apply filters
-        filtered_df = merged_events[
-            (merged_events['mag'] >= mag_filter[0]) & (merged_events['mag'] <= mag_filter[1]) &
-            (merged_events['depth'] >= depth_filter[0]) & (merged_events['depth'] <= depth_filter[1])
-        ]
-        
-        st.write(f"Menampilkan **{len(filtered_df):,}** kejadian gempa yang terjadi di negara-negara terklaster.")
-        
-        # Map and scatter plot layout
-        map_col, chart_col = st.columns([3, 2])
-        
-        with map_col:
-            st.subheader("Sebaran Gempa Berdasarkan Tingkat Risiko Negara")
-            sample_size = min(3000, len(filtered_df))
-            if sample_size > 0:
-                map_data = filtered_df.sample(n=sample_size, random_state=42)
-                m = folium.Map(location=[0, 115], zoom_start=3, tiles="CartoDB positron")
-                
-                for _, row in map_data.iterrows():
-                    cluster = int(row['kmeans_cluster_country'])
-                    info = COUNTRY_RISK_INFO.get(cluster, {"color": "gray", "label": "Unknown"})
-                    color = info["color"]
-                    
-                    popup_text = f"""
-                    <b>Lokasi:</b> {row['place']}<br>
-                    <b>Negara:</b> {row['country']}<br>
-                    <b>Kategori Risiko Negara:</b> {info['label']}<br>
-                    <b>Magnitudo Gempa:</b> {row['mag']:.2f}<br>
-                    <b>Kedalaman:</b> {row['depth']:.1f} km
-                    """
-                    
-                    folium.CircleMarker(
-                        location=[row['latitude'], row['longitude']],
-                        radius=max(3, row['mag'] * 1.5),
-                        color=color,
-                        fill=True,
-                        fill_color=color,
-                        fill_opacity=0.6,
-                        popup=folium.Popup(popup_text, max_width=300)
-                    ).add_to(m)
-                    
-                st.components.v1.html(m._repr_html_(), height=550)
-            else:
-                st.info("Tidak ada data gempa pada rentang filter ini.")
-                
-        with chart_col:
-            st.subheader("Klasterisasi Negara (Frekuensi vs Rata-rata Magnitudo)")
-            if not country_risk_df.empty:
-                plot_data = country_risk_df.copy()
-                plot_data['Kategori Risiko'] = plot_data['kmeans_cluster'].map(lambda x: COUNTRY_RISK_INFO.get(int(x), {"label": "Unknown"})["label"])
-                
-                fig_scatter = px.scatter(
-                    plot_data,
-                    x='quake_count', y='avg_mag', color='Kategori Risiko',
-                    hover_name='country',
-                    color_discrete_map={v['label']: v['color'] for k, v in COUNTRY_RISK_INFO.items()},
-                    labels={'quake_count': 'Jumlah Gempa Setahun', 'avg_mag': 'Rata-rata Magnitudo'},
-                    size='max_mag',
-                    size_max=30,
-                    opacity=0.8
-                )
-                fig_scatter.update_layout(
-                    font=dict(color='#2D3748'),
-                    xaxis=dict(gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
-                    yaxis=dict(gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
-                    plot_bgcolor='white',
-                    paper_bgcolor='white'
-                )
-                st.plotly_chart(fig_scatter, use_container_width=True)
-            else:
-                st.info("Tidak ada data untuk mem-plot grafik.")
-                
-        # Country Risk Description Box Layout
-        st.markdown("### Karakteristik Tingkat Risiko Gempa Negara")
-        risk_cols = st.columns(4)
-        for cluster_id, info in COUNTRY_RISK_INFO.items():
-            with risk_cols[cluster_id]:
-                st.markdown(f"""
-                <div style="background-color:#ffffff; padding:15px; border-radius:10px; border-left: 6px solid {info['color']}; box-shadow: 0 2px 4px rgba(0,0,0,0.05); height: 100%;">
-                    <strong style="color:#2D3748; font-size:1.05rem;">{info['label']}</strong><br>
-                    <span style="color:#718096; font-size:0.85rem; font-style:italic;">{info['desc']}</span>
-                </div>
-                """, unsafe_allow_html=True)
