@@ -393,31 +393,42 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
                 cnt = int(round(pct / 100 * total))
                 cluster_rows.append((lbl, info['color'], pct, cnt))
 
-            # Find the "Dangkal & Kuat" cluster dynamically
+            # Find "Dangkal & Kuat" cluster dynamically
             danger_label = next(
-                (info['label'] for info in HAZARD_INFO.values() if 'Kuat' in info['label'] and 'Dalam' not in info['label']),
-                "Unknown"
+                (info['label'] for info in HAZARD_INFO.values()
+                 if 'Kuat' in info['label'] and 'Dalam' not in info['label']),
+                cluster_rows[0][0]
             )
             danger_pct = cluster_pct.get(danger_label, 0)
 
-            # Render insight box
+            # Render insight box using markdown with HTML
             rows_html = "".join(
                 f"<tr>"
-                f"<td style='padding:4px 12px 4px 0;'>"
-                f"<span style='display:inline-block;width:12px;height:12px;border-radius:50%;background:{color};margin-right:6px;'></span>"
+                f"<td style='padding:5px 16px 5px 0; white-space:nowrap;'>"
+                f"<span style='display:inline-block;width:11px;height:11px;border-radius:50%;"
+                f"background:{color};margin-right:7px;vertical-align:middle;'></span>"
                 f"<b>{label}</b></td>"
-                f"<td style='padding:4px 8px;font-weight:700;color:#2D3748;'>{pct:.1f}%</td>"
-                f"<td style='padding:4px 0;color:#718096;'>({count:,} gempa)</td>"
+                f"<td style='padding:5px 12px; font-weight:700; color:#1A202C;'>{pct:.1f}%</td>"
+                f"<td style='padding:5px 0; color:#4A5568;'>{count:,} gempa</td>"
                 f"</tr>"
                 for label, color, pct, count in cluster_rows
             )
-            st.info(
-                f"**Temuan Utama** — Total **{total:,}** gempa diklasifikasikan ke dalam 4 profil bahaya:\n\n"
-                f"<table style='border-collapse:collapse;width:100%;'>{rows_html}</table>\n\n"
-                f"Kategori paling berbahaya (*{danger_label}*) mewakili **{danger_pct:.1f}%** "
-                f"dari seluruh kejadian — meskipun proporsinya kecil, dampaknya terhadap permukaan sangat signifikan.",
-                icon="📊"
+            st.markdown(
+                f"""<div style="background-color:#ebf8ff; border-left:4px solid #3182ce;
+                              padding:16px 20px; border-radius:6px; margin-top:8px;">
+                    <p style="font-weight:700; color:#2C5282; margin:0 0 12px 0; font-size:0.97rem;">
+                        Temuan Utama &mdash; Total <strong>{total:,}</strong> gempa diklasifikasikan ke dalam 4 profil bahaya:
+                    </p>
+                    <table style="border-collapse:collapse; width:auto;">{rows_html}</table>
+                    <p style="margin:12px 0 0 0; color:#2D3748; font-size:0.9rem;">
+                        Kategori paling berbahaya (<em>{danger_label}</em>) mewakili
+                        <strong>{danger_pct:.1f}%</strong> dari seluruh kejadian &mdash;
+                        meskipun proporsinya kecil, dampaknya terhadap permukaan sangat signifikan.
+                    </p>
+                </div>""",
+                unsafe_allow_html=True
             )
+
         else:
             st.info("Tidak ada data untuk divisualisasikan.")
         
