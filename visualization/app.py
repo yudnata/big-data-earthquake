@@ -395,63 +395,8 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
         else:
             st.info("Tidak ada data untuk divisualisasikan.")
         
-        st.markdown("---")
-        
-        # ============================================================
-        # SECTION 2: Distribusi Fitur per Klaster (Box Plots)
-        # ============================================================
-        st.subheader("2. Validasi Klaster: Distribusi Magnitudo & Kedalaman per Kategori")
-        st.caption(
-            "Box plot di bawah ini memvalidasi bahwa setiap klaster memiliki karakteristik yang "
-            "**berbeda secara statistik** — artinya pengelompokan K-Means berhasil menemukan pola nyata, "
-            "bukan sekadar pembagian acak. Garis tengah kotak = nilai median (nilai tengah)."
-        )
-        box_col1, box_col2 = st.columns(2)
-        
-        with box_col1:
-            st.markdown("**Sebaran Kekuatan Gempa (Magnitudo) per Kategori**")
-            fig_box_mag = px.box(
-                plot_data, x='Kategori Bahaya', y='mag',
-                color='Kategori Bahaya',
-                color_discrete_map=color_map,
-                labels={'mag': 'Magnitudo', 'Kategori Bahaya': 'Kategori Bahaya'},
-                points=False
-            )
-            fig_box_mag.update_layout(
-                showlegend=False,
-                font=dict(color='#2D3748', size=12),
-                xaxis=dict(tickfont=dict(color='#2D3748', size=10), title_font=dict(color='#2D3748')),
-                yaxis=dict(gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
-                plot_bgcolor='white', paper_bgcolor='white', height=380
-            )
-            st.plotly_chart(fig_box_mag, use_container_width=True)
-        
-        with box_col2:
-            st.markdown("**Sebaran Kedalaman Hiposenter (km) per Kategori**")
-            fig_box_dep = px.box(
-                plot_data, x='Kategori Bahaya', y='depth',
-                color='Kategori Bahaya',
-                color_discrete_map=color_map,
-                labels={'depth': 'Kedalaman (km)', 'Kategori Bahaya': 'Kategori Bahaya'},
-                points=False
-            )
-            fig_box_dep.update_layout(
-                showlegend=False,
-                font=dict(color='#2D3748', size=12),
-                xaxis=dict(tickfont=dict(color='#2D3748', size=10), title_font=dict(color='#2D3748')),
-                yaxis=dict(autorange='reversed', gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
-                plot_bgcolor='white', paper_bgcolor='white', height=380
-            )
-            st.plotly_chart(fig_box_dep, use_container_width=True)
-        
-        # Box plot insight
-        st.success(
-            "**Interpretasi:** Kedua box plot menunjukkan bahwa setiap klaster memiliki rentang nilai yang "
-            "tidak saling tumpang tindih secara signifikan — ini mengonfirmasi bahwa model berhasil "
-            "memisahkan gempa berdasarkan profil bahaya yang **bermakna secara geofisika**."
-        )
-        
-        st.markdown("---")
+
+
         
         # ============================================================
         # SECTION 3: Proporsi Klaster (Bar Chart full width)
