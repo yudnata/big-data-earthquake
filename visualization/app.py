@@ -447,7 +447,7 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
         
         # ============================================================
         # SECTION 3: Proporsi Klaster (Bar Chart full width)
-        # ============================================================
+        # ===========================================================
         st.subheader("3. Frekuensi Setiap Kategori Bahaya")
         st.caption("Seberapa sering tiap jenis bahaya gempa terjadi dari total data yang dianalisis?")
         
