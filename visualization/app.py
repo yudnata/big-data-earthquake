@@ -128,24 +128,7 @@ menu = st.sidebar.radio(
     ]
 )
 
-# Shared Filters in Sidebar (only for map pages)
-if menu != "Ringkasan & Tren Seismik":
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Filter Dinamis Peta")
-    
-    # Check if we have data to set filter range
-    min_mag, max_mag = 2.5, 9.5
-    min_depth, max_depth = 0.0, 700.0
-    
-    ref_df = spatial_df
-    if not ref_df.empty:
-        min_mag = float(ref_df['mag'].min())
-        max_mag = float(ref_df['mag'].max())
-        min_depth = float(ref_df['depth'].min())
-        max_depth = float(ref_df['depth'].max())
-        
-    mag_filter = st.sidebar.slider("Rentang Magnitudo (Mag):", min_value=min_mag, max_value=max_mag, value=(min_mag, max_mag), step=0.1)
-    depth_filter = st.sidebar.slider("Rentang Kedalaman (Depth km):", min_value=min_depth, max_value=max_depth, value=(min_depth, max_depth), step=5.0)
+
 
 # Colors for mapping clusters
 SPATIAL_COLORS = ['#e53e3e', '#3182ce', '#38a169', '#dd6b20', '#805ad5', '#d69e2e', '#319795', '#b7791f']
@@ -354,19 +337,14 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
     if hazard_df.empty:
         st.warning("Data hazard kosong. Silakan jalankan notebook `03_data_analysis_hazard.ipynb`.")
     else:
-        # Apply filters
-        filtered_df = hazard_df[
-            (hazard_df['mag'] >= mag_filter[0]) & (hazard_df['mag'] <= mag_filter[1]) &
-            (hazard_df['depth'] >= depth_filter[0]) & (hazard_df['depth'] <= depth_filter[1])
-        ]
-        
-        st.write(f"Menampilkan **{len(filtered_df):,}** data kejadian gempa sesuai filter.")
+        st.write(f"Menampilkan **{len(hazard_df):,}** total data kejadian gempa.")        
+
         
         # Build HAZARD_INFO dynamically from actual centroid values in MongoDB data
         HAZARD_INFO = build_hazard_info(hazard_df)
         
         # Prepare labelled data once, reuse across all charts
-        plot_data = filtered_df.copy()
+        plot_data = hazard_df.copy()
         plot_data['Kategori Bahaya'] = plot_data['kmeans_cluster'].map(
             lambda x: HAZARD_INFO.get(int(x), {"label": "Unknown"})["label"]
         )
