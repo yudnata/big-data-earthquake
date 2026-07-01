@@ -275,18 +275,12 @@ elif menu == "Peta Zona Rawan Spasial (Ring of Fire)":
     if spatial_df.empty:
         st.warning("Data spasial kosong. Silakan jalankan notebook `03_data_analysis.ipynb`.")
     else:
-        # Apply filters
-        filtered_df = spatial_df[
-            (spatial_df['mag'] >= mag_filter[0]) & (spatial_df['mag'] <= mag_filter[1]) &
-            (spatial_df['depth'] >= depth_filter[0]) & (spatial_df['depth'] <= depth_filter[1])
-        ]
-        
-        st.write(f"Menampilkan **{len(filtered_df):,}** gempa sesuai filter.")
+        st.write(f"Menampilkan **{len(spatial_df):,}** total gempa.")
         
         # Sampling mapping points to avoid crashing the browser
-        sample_size = min(3000, len(filtered_df))
+        sample_size = min(3000, len(spatial_df))
         if sample_size > 0:
-            map_data = filtered_df.sample(n=sample_size, random_state=42)
+            map_data = spatial_df.sample(n=sample_size, random_state=42)
             
             # Map Initialization
             m = folium.Map(location=[0, 115], zoom_start=3, tiles="CartoDB positron")
