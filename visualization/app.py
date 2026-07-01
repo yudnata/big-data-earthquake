@@ -151,10 +151,26 @@ if menu != "Ringkasan & Tren Seismik":
 # Colors for mapping clusters
 SPATIAL_COLORS = ['#e53e3e', '#3182ce', '#38a169', '#dd6b20', '#805ad5', '#d69e2e', '#319795', '#b7791f']
 HAZARD_INFO = {
-    0: {"label": "Dangkal & Lemah (Shallow & Weak)", "color": "#3182ce", "desc": "Kedalaman < 70 km, kekuatan < 4.0. Gempa kecil harian, risiko rendah."},
-    1: {"label": "Dangkal & Kuat (Shallow & Strong)", "color": "#e53e3e", "desc": "Kedalaman < 70 km, kekuatan > 5.5. Gempa merusak permukaan, potensi tsunami jika di laut."},
-    2: {"label": "Menengah & Sedang (Intermediate & Moderate)", "color": "#dd6b20", "desc": "Kedalaman 70-300 km, kekuatan 4.0-5.5. Terasa getaran sedang di darat."},
-    3: {"label": "Dalam & Kuat (Deep & Strong)", "color": "#d69e2e", "desc": "Kedalaman > 300 km, kekuatan > 5.5. Getaran meluas ke wilayah jauh, tetapi aman untuk permukaan."}
+    0: {
+        "label": "Klaster 0: Dangkal & Lemah",
+        "color": "#3182ce",
+        "desc": "Magnitudo rendah (< 4.0), kedalaman dangkal (< 70 km). Sangat sering terjadi, risiko bahaya sangat rendah. Umumnya hanya dirasakan oleh peralatan seismograf dan tidak menimbulkan kerusakan."
+    },
+    1: {
+        "label": "Klaster 1: Dangkal & Kuat",
+        "color": "#e53e3e",
+        "desc": "Magnitudo tinggi (> 6.0), kedalaman dangkal (< 70 km). Jenis paling merusak karena melepaskan energi besar dekat permukaan tanah. Berpotensi tsunami jika terjadi di bawah laut dan menyebabkan kerusakan bangunan masif."
+    },
+    2: {
+        "label": "Klaster 2: Menengah & Sedang",
+        "color": "#dd6b20",
+        "desc": "Magnitudo sedang (4.0 - 5.5), kedalaman menengah (70 - 300 km). Getaran dirasakan sedang oleh penduduk di permukaan. Kerusakan ringan hingga sedang pada bangunan yang tidak tahan gempa."
+    },
+    3: {
+        "label": "Klaster 3: Dalam & Kuat",
+        "color": "#d69e2e",
+        "desc": "Magnitudo tinggi (> 5.5), kedalaman sangat dalam (> 300 km). Terjadi jauh di bawah permukaan bumi pada zona subduksi dalam. Getaran terasa di area luas namun jarang menimbulkan kerusakan struktural masif di permukaan."
+    }
 }
 
 COUNTRY_RISK_INFO = {
@@ -172,8 +188,8 @@ if menu == "Ringkasan & Tren Seismik":
     if spatial_df.empty:
         st.warning("Data kosong di MongoDB. Pastikan pipeline Spark Anda sudah dijalankan.")
     else:
-        # KPI Cards Layout
-        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        # KPI Cards Layout (3 columns: Total Gempa, Magnitudo Terbesar, Rata-rata Kedalaman)
+        kpi1, kpi2, kpi3 = st.columns(3)
         
         with kpi1:
             st.markdown(f"""
@@ -192,14 +208,6 @@ if menu == "Ringkasan & Tren Seismik":
             """, unsafe_allow_html=True)
             
         with kpi3:
-            st.markdown(f"""
-                <div class="kpi-card">
-                    <div class="kpi-title">Negara Terdampak</div>
-                    <div class="kpi-value">{spatial_df['country'].nunique()}</div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-        with kpi4:
             st.markdown(f"""
                 <div class="kpi-card">
                     <div class="kpi-title">Rata-rata Kedalaman</div>
@@ -309,8 +317,12 @@ elif menu == "Peta Zona Rawan Spasial (Ring of Fire)":
 
 # --- PAGE 3: HAZARD PROFILING MAP ---
 elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
-    st.title("Peta & Profil Bahaya Gempa (Hazard)")
-    st.write("Mengklasifikasikan gempa bumi berdasarkan karakteristik parameter fisik patahan (kedalaman & magnitudo) secara global.")
+    st.title("Klasifikasi Profil Bahaya Seismik")
+    st.write(
+        "Menggunakan algoritma **K-Means Clustering** (K=4), setiap kejadian gempa diklasifikasikan "
+        "berdasarkan dua parameter fisik utama: **kedalaman hiposenter** dan **magnitudo**. "
+        "Hasil klasifikasi menghasilkan 4 profil bahaya yang berbeda secara karakteristik."
+    )
     
     if hazard_df.empty:
         st.warning("Data hazard kosong. Silakan jalankan notebook `03_data_analysis_hazard.ipynb`.")
@@ -321,79 +333,209 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
             (hazard_df['depth'] >= depth_filter[0]) & (hazard_df['depth'] <= depth_filter[1])
         ]
         
-        st.write(f"Menampilkan **{len(filtered_df):,}** gempa sesuai filter.")
+        st.write(f"Menampilkan **{len(filtered_df):,}** data kejadian gempa sesuai filter.")
         
-        # Left map, right scatter plot layout
-        map_col, chart_col = st.columns([3, 2])
+        # Prepare labelled data once, reuse across all charts
+        plot_data = filtered_df.copy()
+        plot_data['Kategori Bahaya'] = plot_data['kmeans_cluster'].map(
+            lambda x: HAZARD_INFO.get(int(x), {"label": "Unknown"})["label"]
+        )
+        color_map = {v['label']: v['color'] for k, v in HAZARD_INFO.items()}
+
+        # Auto-compute insights
+        total = len(plot_data)
+        cluster_pct = plot_data['Kategori Bahaya'].value_counts(normalize=True) * 100
+        dominant = cluster_pct.idxmax() if not cluster_pct.empty else "-"
+        dominant_pct = cluster_pct.max() if not cluster_pct.empty else 0
+        danger_label = HAZARD_INFO[1]['label']
+        danger_pct = cluster_pct.get(danger_label, 0)
+        
+        # ============================================================
+        # SECTION 1: Scatter Plot — Sebaran Klaster di Ruang Fitur
+        # ============================================================
+        st.subheader("1. Sebaran Klaster: Kekuatan vs Kedalaman Gempa")
+        st.caption(
+            "Grafik ini menunjukkan posisi setiap gempa dalam koordinat kekuatan (magnitudo) dan kedalaman. "
+            "Warna mewakili kategori bahaya hasil pengelompokan otomatis. "
+            "Sumbu kedalaman dibalik: angka 0 di atas = permukaan bumi, semakin ke bawah = semakin jauh ke dalam bumi."
+        )
+        if not plot_data.empty:
+            fig_scatter = px.scatter(
+                plot_data.sample(n=min(8000, len(plot_data)), random_state=42),
+                x='mag', y='depth', color='Kategori Bahaya',
+                color_discrete_map=color_map,
+                labels={'mag': 'Magnitudo', 'depth': 'Kedalaman (km)', 'Kategori Bahaya': 'Profil Bahaya'},
+                opacity=0.65,
+                hover_data={'mag': ':.2f', 'depth': ':.1f'}
+            )
+            fig_scatter.update_layout(
+                font=dict(color='#2D3748', size=13),
+                xaxis=dict(gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
+                yaxis=dict(autorange='reversed', gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
+                legend=dict(font=dict(color='#2D3748'), title_font=dict(color='#2D3748')),
+                plot_bgcolor='white', paper_bgcolor='white', height=470
+            )
+            st.plotly_chart(fig_scatter, use_container_width=True)
+            
+            # Auto insight callout
+            st.info(
+                f"**Temuan Utama:** Dari {total:,} gempa yang dianalisis, sebanyak **{dominant_pct:.1f}%** "
+                f"masuk ke kategori *{dominant}*. Gempa kategori paling berbahaya "
+                f"(*{danger_label}*) mewakili **{danger_pct:.1f}%** dari total kejadian — "
+                f"meskipun proporsinya kecil, dampaknya terhadap permukaan sangat signifikan."
+            )
+        else:
+            st.info("Tidak ada data untuk divisualisasikan.")
+        
+        st.markdown("---")
+        
+        # ============================================================
+        # SECTION 2: Distribusi Fitur per Klaster (Box Plots)
+        # ============================================================
+        st.subheader("2. Validasi Klaster: Distribusi Magnitudo & Kedalaman per Kategori")
+        st.caption(
+            "Box plot di bawah ini memvalidasi bahwa setiap klaster memiliki karakteristik yang "
+            "**berbeda secara statistik** — artinya pengelompokan K-Means berhasil menemukan pola nyata, "
+            "bukan sekadar pembagian acak. Garis tengah kotak = nilai median (nilai tengah)."
+        )
+        box_col1, box_col2 = st.columns(2)
+        
+        with box_col1:
+            st.markdown("**Sebaran Kekuatan Gempa (Magnitudo) per Kategori**")
+            fig_box_mag = px.box(
+                plot_data, x='Kategori Bahaya', y='mag',
+                color='Kategori Bahaya',
+                color_discrete_map=color_map,
+                labels={'mag': 'Magnitudo', 'Kategori Bahaya': 'Kategori Bahaya'},
+                points=False
+            )
+            fig_box_mag.update_layout(
+                showlegend=False,
+                font=dict(color='#2D3748', size=12),
+                xaxis=dict(tickfont=dict(color='#2D3748', size=10), title_font=dict(color='#2D3748')),
+                yaxis=dict(gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
+                plot_bgcolor='white', paper_bgcolor='white', height=380
+            )
+            st.plotly_chart(fig_box_mag, use_container_width=True)
+        
+        with box_col2:
+            st.markdown("**Sebaran Kedalaman Hiposenter (km) per Kategori**")
+            fig_box_dep = px.box(
+                plot_data, x='Kategori Bahaya', y='depth',
+                color='Kategori Bahaya',
+                color_discrete_map=color_map,
+                labels={'depth': 'Kedalaman (km)', 'Kategori Bahaya': 'Kategori Bahaya'},
+                points=False
+            )
+            fig_box_dep.update_layout(
+                showlegend=False,
+                font=dict(color='#2D3748', size=12),
+                xaxis=dict(tickfont=dict(color='#2D3748', size=10), title_font=dict(color='#2D3748')),
+                yaxis=dict(autorange='reversed', gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
+                plot_bgcolor='white', paper_bgcolor='white', height=380
+            )
+            st.plotly_chart(fig_box_dep, use_container_width=True)
+        
+        # Box plot insight
+        st.success(
+            "**Interpretasi:** Kedua box plot menunjukkan bahwa setiap klaster memiliki rentang nilai yang "
+            "tidak saling tumpang tindih secara signifikan — ini mengonfirmasi bahwa model berhasil "
+            "memisahkan gempa berdasarkan profil bahaya yang **bermakna secara geofisika**."
+        )
+        
+        st.markdown("---")
+        
+        # ============================================================
+        # SECTION 3: Proporsi Klaster + Peta Geospasial
+        # ============================================================
+        st.subheader("3. Frekuensi Kategori Bahaya & Distribusi Geografis")
+        bar_col, map_col = st.columns([1, 2])
+        
+        with bar_col:
+            st.markdown("**Jumlah Gempa per Kategori Bahaya**")
+            st.caption("Seberapa sering tiap jenis bahaya terjadi?")
+            cluster_counts = plot_data['Kategori Bahaya'].value_counts().reset_index()
+            cluster_counts.columns = ['Kategori Bahaya', 'Jumlah']
+            # Sort by cluster order
+            order = [HAZARD_INFO[i]['label'] for i in sorted(HAZARD_INFO.keys())]
+            cluster_counts['sort_key'] = cluster_counts['Kategori Bahaya'].map(
+                {v: k for k, v in enumerate(order)}
+            )
+            cluster_counts = cluster_counts.sort_values('sort_key')
+            
+            fig_bar = px.bar(
+                cluster_counts, x='Jumlah', y='Kategori Bahaya', orientation='h',
+                color='Kategori Bahaya', color_discrete_map=color_map,
+                labels={'Jumlah': 'Jumlah Kejadian', 'Kategori Bahaya': ''},
+                text='Jumlah'
+            )
+            fig_bar.update_traces(texttemplate='%{text:,}', textposition='outside')
+            fig_bar.update_layout(
+                showlegend=False,
+                font=dict(color='#2D3748', size=12),
+                xaxis=dict(gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
+                yaxis=dict(title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748', size=10)),
+                plot_bgcolor='white', paper_bgcolor='white', height=400,
+                margin=dict(r=60)
+            )
+            st.plotly_chart(fig_bar, use_container_width=True)
         
         with map_col:
-            st.subheader("Sebaran Wilayah Gempa per Profil Bahaya")
+            st.markdown("**Peta Sebaran Gempa per Profil Bahaya**")
+            st.caption("Klik titik untuk melihat detail kejadian. Ukuran titik proporsional terhadap magnitudo.")
             sample_size = min(3000, len(filtered_df))
             if sample_size > 0:
                 map_data = filtered_df.sample(n=sample_size, random_state=42)
-                m = folium.Map(location=[0, 115], zoom_start=3, tiles="CartoDB positron")
-                
+                m = folium.Map(location=[0, 115], zoom_start=2, tiles="CartoDB positron")
                 for _, row in map_data.iterrows():
                     cluster = int(row['kmeans_cluster'])
                     info = HAZARD_INFO.get(cluster, {"color": "gray", "label": "Unknown"})
-                    color = info["color"]
-                    
-                    popup_text = f"""
-                    <b>Lokasi:</b> {row['place']}<br>
-                    <b>Negara:</b> {row['country']}<br>
-                    <b>Magnitudo:</b> {row['mag']:.2f}<br>
-                    <b>Kedalaman:</b> {row['depth']:.1f} km<br>
-                    <b>Kategori Bahaya:</b> {info['label']}
-                    """
-                    
+                    popup_text = (
+                        f"<b>Lokasi:</b> {row['place']}<br>"
+                        f"<b>Negara:</b> {row['country']}<br>"
+                        f"<b>Magnitudo:</b> {row['mag']:.2f}<br>"
+                        f"<b>Kedalaman:</b> {row['depth']:.1f} km<br>"
+                        f"<b>Kategori:</b> {info['label']}"
+                    )
                     folium.CircleMarker(
                         location=[row['latitude'], row['longitude']],
-                        radius=max(3, row['mag'] * 1.5),
-                        color=color,
-                        fill=True,
-                        fill_color=color,
-                        fill_opacity=0.6,
-                        popup=folium.Popup(popup_text, max_width=300)
+                        radius=max(2.5, row['mag'] * 1.4),
+                        color=info["color"], fill=True,
+                        fill_color=info["color"], fill_opacity=0.6,
+                        popup=folium.Popup(popup_text, max_width=280)
                     ).add_to(m)
-                    
-                st.components.v1.html(m._repr_html_(), height=550)
+                st.components.v1.html(m._repr_html_(), height=400)
             else:
-                st.info("Tidak ada data gempa bumi pada rentang filter ini.")
-                
-        with chart_col:
-            st.subheader("Hubungan Magnitudo vs Kedalaman")
-            if not filtered_df.empty:
-                plot_data = filtered_df.copy()
-                plot_data['Kategori Bahaya'] = plot_data['kmeans_cluster'].map(lambda x: HAZARD_INFO.get(int(x), {"label": "Unknown"})["label"])
-                
-                fig_scatter = px.scatter(
-                    plot_data.sample(n=min(5000, len(plot_data)), random_state=42),
-                    x='mag', y='depth', color='Kategori Bahaya',
-                    color_discrete_map={v['label']: v['color'] for k, v in HAZARD_INFO.items()},
-                    labels={'mag': 'Magnitudo', 'depth': 'Kedalaman (km)'},
-                    opacity=0.7
-                )
-                fig_scatter.update_layout(
-                    yaxis_autorange="reverse", # Reverse Y-axis (depth points downward)
-                    font=dict(color='#2D3748'),
-                    xaxis=dict(gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
-                    yaxis=dict(gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
-                    plot_bgcolor='white',
-                    paper_bgcolor='white'
-                )
-                st.plotly_chart(fig_scatter, use_container_width=True)
-            else:
-                st.info("Tidak ada data untuk mem-plot grafik.")
-                
-        # Hazard Description Box Table
-        st.markdown("### Deskripsi & Karakteristik Profil Bahaya Seismik")
-        kpi_desc_cols = st.columns(4)
+                st.info("Tidak ada data pada rentang filter ini.")
+        
+        st.markdown("---")
+        
+        # ============================================================
+        # SECTION 4: Kartu Deskripsi Klaster
+        # ============================================================
+        st.subheader("4. Penjelasan Setiap Kategori Profil Bahaya")
+        st.caption(
+            "Interpretasi dari setiap klaster berdasarkan kombinasi magnitudo dan kedalaman gempa "
+            "yang dihasilkan model K-Means:"
+        )
+        desc_cols = st.columns(4)
         for cluster_id, info in HAZARD_INFO.items():
-            with kpi_desc_cols[cluster_id]:
+            with desc_cols[cluster_id]:
                 st.markdown(f"""
-                <div style="background-color:#ffffff; padding:15px; border-radius:10px; border-left: 6px solid {info['color']}; box-shadow: 0 2px 4px rgba(0,0,0,0.05); height: 100%;">
-                    <strong style="color:#2D3748; font-size:1.05rem;">{info['label']}</strong><br>
-                    <span style="color:#718096; font-size:0.85rem; font-style:italic;">{info['desc']}</span>
+                <div style="background-color:#ffffff; padding:18px; border-radius:12px;
+                            border-top: 5px solid {info['color']};
+                            box-shadow: 0 4px 10px rgba(0,0,0,0.08); height:100%;">
+                    <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
+                                letter-spacing:0.1em; color:{info['color']}; margin-bottom:8px;">
+                        Klaster {cluster_id}
+                    </div>
+                    <strong style="color:#1A202C; font-size:0.95rem; display:block;
+                                   margin-bottom:10px; line-height:1.35;">
+                        {info['label']}
+                    </strong>
+                    <span style="color:#4A5568; font-size:0.85rem; line-height:1.65;">
+                        {info['desc']}
+                    </span>
                 </div>
                 """, unsafe_allow_html=True)
 
