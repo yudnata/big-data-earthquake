@@ -446,69 +446,37 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
         st.markdown("---")
         
         # ============================================================
-        # SECTION 3: Proporsi Klaster + Peta Geospasial
+        # SECTION 3: Proporsi Klaster (Bar Chart full width)
         # ============================================================
-        st.subheader("3. Frekuensi Kategori Bahaya & Distribusi Geografis")
-        bar_col, map_col = st.columns([1, 2])
+        st.subheader("3. Frekuensi Setiap Kategori Bahaya")
+        st.caption("Seberapa sering tiap jenis bahaya gempa terjadi dari total data yang dianalisis?")
         
-        with bar_col:
-            st.markdown("**Jumlah Gempa per Kategori Bahaya**")
-            st.caption("Seberapa sering tiap jenis bahaya terjadi?")
-            cluster_counts = plot_data['Kategori Bahaya'].value_counts().reset_index()
-            cluster_counts.columns = ['Kategori Bahaya', 'Jumlah']
-            # Sort by cluster order
-            order = [HAZARD_INFO[i]['label'] for i in sorted(HAZARD_INFO.keys())]
-            cluster_counts['sort_key'] = cluster_counts['Kategori Bahaya'].map(
-                {v: k for k, v in enumerate(order)}
-            )
-            cluster_counts = cluster_counts.sort_values('sort_key')
-            
-            fig_bar = px.bar(
-                cluster_counts, x='Jumlah', y='Kategori Bahaya', orientation='h',
-                color='Kategori Bahaya', color_discrete_map=color_map,
-                labels={'Jumlah': 'Jumlah Kejadian', 'Kategori Bahaya': ''},
-                text='Jumlah'
-            )
-            fig_bar.update_traces(texttemplate='%{text:,}', textposition='outside')
-            fig_bar.update_layout(
-                showlegend=False,
-                font=dict(color='#2D3748', size=12),
-                xaxis=dict(gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
-                yaxis=dict(title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748', size=10)),
-                plot_bgcolor='white', paper_bgcolor='white', height=400,
-                margin=dict(r=60)
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
+        cluster_counts = plot_data['Kategori Bahaya'].value_counts().reset_index()
+        cluster_counts.columns = ['Kategori Bahaya', 'Jumlah']
+        order = [HAZARD_INFO[i]['label'] for i in sorted(HAZARD_INFO.keys())]
+        cluster_counts['sort_key'] = cluster_counts['Kategori Bahaya'].map(
+            {v: k for k, v in enumerate(order)}
+        )
+        cluster_counts = cluster_counts.sort_values('sort_key')
         
-        with map_col:
-            st.markdown("**Peta Sebaran Gempa per Profil Bahaya**")
-            st.caption("Klik titik untuk melihat detail kejadian. Ukuran titik proporsional terhadap magnitudo.")
-            sample_size = min(3000, len(filtered_df))
-            if sample_size > 0:
-                map_data = filtered_df.sample(n=sample_size, random_state=42)
-                m = folium.Map(location=[0, 115], zoom_start=2, tiles="CartoDB positron")
-                for _, row in map_data.iterrows():
-                    cluster = int(row['kmeans_cluster'])
-                    info = HAZARD_INFO.get(cluster, {"color": "gray", "label": "Unknown"})
-                    popup_text = (
-                        f"<b>Lokasi:</b> {row['place']}<br>"
-                        f"<b>Negara:</b> {row['country']}<br>"
-                        f"<b>Magnitudo:</b> {row['mag']:.2f}<br>"
-                        f"<b>Kedalaman:</b> {row['depth']:.1f} km<br>"
-                        f"<b>Kategori:</b> {info['label']}"
-                    )
-                    folium.CircleMarker(
-                        location=[row['latitude'], row['longitude']],
-                        radius=max(2.5, row['mag'] * 1.4),
-                        color=info["color"], fill=True,
-                        fill_color=info["color"], fill_opacity=0.6,
-                        popup=folium.Popup(popup_text, max_width=280)
-                    ).add_to(m)
-                st.components.v1.html(m._repr_html_(), height=400)
-            else:
-                st.info("Tidak ada data pada rentang filter ini.")
+        fig_bar = px.bar(
+            cluster_counts, x='Jumlah', y='Kategori Bahaya', orientation='h',
+            color='Kategori Bahaya', color_discrete_map=color_map,
+            labels={'Jumlah': 'Jumlah Kejadian', 'Kategori Bahaya': ''},
+            text='Jumlah'
+        )
+        fig_bar.update_traces(texttemplate='%{text:,}', textposition='outside')
+        fig_bar.update_layout(
+            showlegend=False,
+            font=dict(color='#2D3748', size=13),
+            xaxis=dict(gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
+            yaxis=dict(title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748', size=11)),
+            plot_bgcolor='white', paper_bgcolor='white', height=320,
+            margin=dict(r=80)
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
         
-        st.markdown("---")
+
         
         # ============================================================
         # SECTION 4: Kartu Deskripsi Klaster
