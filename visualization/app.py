@@ -385,12 +385,38 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
             )
             st.plotly_chart(fig_scatter, use_container_width=True)
             
-            # Auto insight callout
+            # Build per-cluster percentage rows
+            cluster_rows = []
+            for cid, info in sorted(HAZARD_INFO.items()):
+                lbl = info['label']
+                pct = cluster_pct.get(lbl, 0)
+                cnt = int(round(pct / 100 * total))
+                cluster_rows.append((lbl, info['color'], pct, cnt))
+
+            # Find the "Dangkal & Kuat" cluster dynamically
+            danger_label = next(
+                (info['label'] for info in HAZARD_INFO.values() if 'Kuat' in info['label'] and 'Dalam' not in info['label']),
+                "Unknown"
+            )
+            danger_pct = cluster_pct.get(danger_label, 0)
+
+            # Render insight box
+            rows_html = "".join(
+                f"<tr>"
+                f"<td style='padding:4px 12px 4px 0;'>"
+                f"<span style='display:inline-block;width:12px;height:12px;border-radius:50%;background:{color};margin-right:6px;'></span>"
+                f"<b>{label}</b></td>"
+                f"<td style='padding:4px 8px;font-weight:700;color:#2D3748;'>{pct:.1f}%</td>"
+                f"<td style='padding:4px 0;color:#718096;'>({count:,} gempa)</td>"
+                f"</tr>"
+                for label, color, pct, count in cluster_rows
+            )
             st.info(
-                f"**Temuan Utama:** Dari {total:,} gempa yang dianalisis, sebanyak **{dominant_pct:.1f}%** "
-                f"masuk ke kategori *{dominant}*. Gempa kategori paling berbahaya "
-                f"(*{danger_label}*) mewakili **{danger_pct:.1f}%** dari total kejadian — "
-                f"meskipun proporsinya kecil, dampaknya terhadap permukaan sangat signifikan."
+                f"**Temuan Utama** — Total **{total:,}** gempa diklasifikasikan ke dalam 4 profil bahaya:\n\n"
+                f"<table style='border-collapse:collapse;width:100%;'>{rows_html}</table>\n\n"
+                f"Kategori paling berbahaya (*{danger_label}*) mewakili **{danger_pct:.1f}%** "
+                f"dari seluruh kejadian — meskipun proporsinya kecil, dampaknya terhadap permukaan sangat signifikan.",
+                icon="📊"
             )
         else:
             st.info("Tidak ada data untuk divisualisasikan.")
