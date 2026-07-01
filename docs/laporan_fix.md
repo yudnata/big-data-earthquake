@@ -330,10 +330,11 @@ Penerapan *Virtual Machine* berbasis Linux WSL yang terkalibrasi melalui fitur i
 
 ### 5.2 Rencana Tindak Lanjut (Next Steps)
 #### 5.2.1 Tahap Data Analysis
-Keluaran data bersih ini digunakan untuk tahap *Machine Learning Clustering* menggunakan algoritma K-Means dan Bisecting K-Means. Analisis dilakukan dengan dua pendekatan: *Spatio-Physical Clustering* untuk memetakan zona rawan bencana secara spasial-fisik, dan *Earthquake Hazard Profiling* untuk mengelompokkan gempa berdasarkan parameter kekuatan (magnitudo) dan kedalamannya secara global.
+Keluaran data bersih ini digunakan untuk tahap *Machine Learning Clustering* menggunakan algoritma K-Means dan Bisecting K-Means. Analisis dilakukan dengan dua model terpisah: *Pure Spatial Clustering* (Model 1) untuk memetakan zona cincin api dunia secara geografis, dan *Earthquake Hazard Profiling* (Model 2) untuk mengelompokkan gempa secara fisik berdasarkan kekuatan (magnitudo) dan kedalamannya secara global.
 
 #### 5.2.2 Tahap Visualisasi
-Integrasi hasil kalkulasi pemetaan lempeng spasio-fisik dan profil bahaya gempa akan diakuisisi dari MongoDB Atlas ke dalam Streamlit Dashboard. Pengguna dapat memilih visualisasi peta sebaran spasio-fisik maupun peta interaktif profil bahaya gempa.
+Integrasi hasil kalkulasi pemetaan lempeng spasial murni dan profil bahaya gempa (hazard) akan diakuisisi dari MongoDB Atlas (menggunakan collection terpisah) ke dalam Streamlit Dashboard. Pengguna dapat memilih visualisasi peta sebaran spasial lempeng murni (Ring of Fire) maupun peta interaktif profil bahaya gempa.
+
 
 
 ---

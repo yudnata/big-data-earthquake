@@ -33,9 +33,10 @@ Pemodelan clustering K-Means dilatih menggunakan dua notebook terpisah:
 ## Rencana Eksekusi
 - Meload dataset `clean_earthquakes_emsc` dari MongoDB Atlas.
 - Menerapkan iterasi evaluasi Elbow Method dan Silhouette Score di kedua notebook.
-- Menyimpan hasil klasifikasi klaster spasial dan hazard ke collection MongoDB target:
-  - `kmeans_results_emsc` dan `bisecting_results_emsc` (Spatial).
-  - Diperbarui dengan kolom tambahan `hazard_cluster` pada versi Spatio-Physical & Hazard.
+- Menyimpan hasil klasifikasi klaster spasial dan hazard ke collection MongoDB target masing-masing:
+  - `kmeans_results_emsc` dan `bisecting_results_emsc` (Model Spasial).
+  - `kmeans_hazard_results_emsc` dan `bisecting_hazard_results_emsc` (Model Hazard Profiling - Baru).
 - Menyimpan ringkasan EDA ke collection `eda_summary_emsc` dan metrik model ke `model_metrics_emsc`.
+
 
 
