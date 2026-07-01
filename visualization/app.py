@@ -149,28 +149,56 @@ if menu != "Ringkasan & Tren Seismik":
 
 # Colors for mapping clusters
 SPATIAL_COLORS = ['#e53e3e', '#3182ce', '#38a169', '#dd6b20', '#805ad5', '#d69e2e', '#319795', '#b7791f']
-HAZARD_INFO = {
-    0: {
-        "label": "Klaster 0: Dangkal & Lemah",
-        "color": "#3182ce",
-        "desc": "Magnitudo rendah (< 4.0), kedalaman dangkal (< 70 km). Sangat sering terjadi, risiko bahaya sangat rendah. Umumnya hanya dirasakan oleh peralatan seismograf dan tidak menimbulkan kerusakan."
-    },
-    1: {
-        "label": "Klaster 1: Dangkal & Kuat",
-        "color": "#e53e3e",
-        "desc": "Magnitudo tinggi (> 6.0), kedalaman dangkal (< 70 km). Jenis paling merusak karena melepaskan energi besar dekat permukaan tanah. Berpotensi tsunami jika terjadi di bawah laut dan menyebabkan kerusakan bangunan masif."
-    },
-    2: {
-        "label": "Klaster 2: Menengah & Sedang",
-        "color": "#dd6b20",
-        "desc": "Magnitudo sedang (4.0 - 5.5), kedalaman menengah (70 - 300 km). Getaran dirasakan sedang oleh penduduk di permukaan. Kerusakan ringan hingga sedang pada bangunan yang tidak tahan gempa."
-    },
-    3: {
-        "label": "Klaster 3: Dalam & Kuat",
-        "color": "#d69e2e",
-        "desc": "Magnitudo tinggi (> 5.5), kedalaman sangat dalam (> 300 km). Terjadi jauh di bawah permukaan bumi pada zona subduksi dalam. Getaran terasa di area luas namun jarang menimbulkan kerusakan struktural masif di permukaan."
-    }
-}
+
+# Warna dan deskripsi per kategori bahaya (4 kategori tetap)
+_HAZARD_PALETTE = [
+    {"key": "dangkal_lemah",   "color": "#3182ce", "label": "Dangkal & Lemah",
+     "desc": "Magnitudo rendah (< 4.0), kedalaman dangkal (< 70 km). Sangat sering terjadi, risiko bahaya sangat rendah. Umumnya hanya dirasakan peralatan seismograf dan tidak menimbulkan kerusakan."},
+    {"key": "dangkal_kuat",    "color": "#e53e3e", "label": "Dangkal & Kuat",
+     "desc": "Magnitudo tinggi (> 6.0), kedalaman dangkal (< 70 km). Jenis paling merusak — melepaskan energi besar dekat permukaan. Berpotensi tsunami dan menyebabkan kerusakan bangunan masif."},
+    {"key": "menengah_sedang", "color": "#dd6b20", "label": "Menengah & Sedang",
+     "desc": "Magnitudo sedang (4.0–5.5), kedalaman menengah (70–300 km). Getaran dirasakan sedang oleh penduduk. Kerusakan ringan hingga sedang pada bangunan tidak tahan gempa."},
+    {"key": "dalam_kuat",      "color": "#d69e2e", "label": "Dalam & Kuat",
+     "desc": "Magnitudo tinggi (> 5.5), kedalaman sangat dalam (> 300 km). Terjadi di zona subduksi dalam. Getaran terasa di area luas namun jarang menimbulkan kerusakan struktural masif."},
+]
+
+def build_hazard_info(df: pd.DataFrame) -> dict:
+    """
+    Menghitung centroid tiap klaster dari data aktual MongoDB,
+    lalu memetakan label bahaya yang tepat berdasarkan nilai centroid.
+    Tidak perlu re-run notebook sama sekali.
+    """
+    if df.empty or 'kmeans_cluster' not in df.columns:
+        # Fallback: pakai urutan default 0-3
+        return {i: {"label": f"Klaster {i}: {_HAZARD_PALETTE[i]['label']}",
+                    "color": _HAZARD_PALETTE[i]["color"],
+                    "desc":  _HAZARD_PALETTE[i]["desc"]} for i in range(4)}
+    
+    centroids = df.groupby('kmeans_cluster')[['mag', 'depth']].mean()
+    
+    # Tentukan kategori tiap klaster berdasarkan centroid:
+    # - dangkal = depth < 150 km (median antara shallow & mid)
+    # - kuat    = mag  > rata2 mag semua klaster
+    avg_mag   = centroids['mag'].mean()
+    avg_depth = centroids['depth'].mean()
+    
+    assigned = {}
+    for cluster_id, row in centroids.iterrows():
+        is_shallow = row['depth'] < avg_depth
+        is_strong  = row['mag']   > avg_mag
+        if   is_shallow and not is_strong: key = "dangkal_lemah"
+        elif is_shallow and     is_strong: key = "dangkal_kuat"
+        elif not is_shallow and not is_strong: key = "menengah_sedang"
+        else:                               key = "dalam_kuat"
+        palette = next(p for p in _HAZARD_PALETTE if p["key"] == key)
+        assigned[int(cluster_id)] = {
+            "label": f"Klaster {cluster_id}: {palette['label']}",
+            "color": palette["color"],
+            "desc":  palette["desc"],
+        }
+    return assigned
+
+HAZARD_INFO = build_hazard_info(pd.DataFrame())  # placeholder; rebuilt on page load
 
 COUNTRY_RISK_INFO = {
     0: {"label": "Risiko Ekstrem (Extreme Risk)", "color": "#e53e3e", "desc": "Frekuensi gempa sangat tinggi dan kekuatan rata-rata besar (contoh: Indonesia, Chile)."},
@@ -333,6 +361,9 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
         ]
         
         st.write(f"Menampilkan **{len(filtered_df):,}** data kejadian gempa sesuai filter.")
+        
+        # Build HAZARD_INFO dynamically from actual centroid values in MongoDB data
+        HAZARD_INFO = build_hazard_info(hazard_df)
         
         # Prepare labelled data once, reuse across all charts
         plot_data = filtered_df.copy()
