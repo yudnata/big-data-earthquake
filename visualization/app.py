@@ -431,22 +431,22 @@ elif menu == "Klasifikasi Risiko Negara (Top 10)":
         
         with tab_col1:
             st.subheader("Tabel Distribusi & Klasifikasi Negara")
-            # Premium HTML Table
-            html_table = """
-            <div style="overflow-x:auto;">
-                <table style="width:100%; border-collapse:collapse; margin-top:10px; font-family:inherit;">
-                    <thead>
-                        <tr style="background-color:#f8fafc; border-bottom:2px solid #e2e8f0; text-align:left;">
-                            <th style="padding:10px 6px; color:#475569; font-weight:600; font-size:0.85rem;">Negara</th>
-                            <th style="padding:10px 6px; color:#3b82f6; font-weight:600; font-size:0.85rem; text-align:center;">Risiko Rendah</th>
-                            <th style="padding:10px 6px; color:#f97316; font-weight:600; font-size:0.85rem; text-align:center;">Risiko Sedang</th>
-                            <th style="padding:10px 6px; color:#ef4444; font-weight:600; font-size:0.85rem; text-align:center;">Risiko Tinggi</th>
-                            <th style="padding:10px 6px; color:#1e293b; font-weight:700; font-size:0.85rem; text-align:center;">Total</th>
-                            <th style="padding:10px 6px; color:#1e293b; font-weight:600; font-size:0.85rem; text-align:center;">Klasifikasi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            """
+            # Premium HTML Table (Flat concatenation to avoid markdown indentation bug)
+            html_table = (
+                '<div style="overflow-x:auto;">'
+                '<table style="width:100%; border-collapse:collapse; margin-top:10px; font-family:inherit;">'
+                '<thead>'
+                '<tr style="background-color:#f8fafc; border-bottom:2px solid #e2e8f0; text-align:left;">'
+                '<th style="padding:10px 6px; color:#475569; font-weight:600; font-size:0.85rem;">Negara</th>'
+                '<th style="padding:10px 6px; color:#3b82f6; font-weight:600; font-size:0.85rem; text-align:center;">Risiko Rendah</th>'
+                '<th style="padding:10px 6px; color:#f97316; font-weight:600; font-size:0.85rem; text-align:center;">Risiko Sedang</th>'
+                '<th style="padding:10px 6px; color:#ef4444; font-weight:600; font-size:0.85rem; text-align:center;">Risiko Tinggi</th>'
+                '<th style="padding:10px 6px; color:#1e293b; font-weight:700; font-size:0.85rem; text-align:center;">Total</th>'
+                '<th style="padding:10px 6px; color:#1e293b; font-weight:600; font-size:0.85rem; text-align:center;">Klasifikasi</th>'
+                '</tr>'
+                '</thead>'
+                '<tbody>'
+            )
             for idx, row in top_10_countries.iterrows():
                 risk = row['Klasifikasi Risiko']
                 if risk == 'Risiko Tinggi (Rawan)':
@@ -457,16 +457,16 @@ elif menu == "Klasifikasi Risiko Negara (Top 10)":
                     badge = "<span style='background-color:#dbeafe; color:#2563eb; padding:3px 6px; border-radius:4px; font-weight:700; font-size:0.75rem; display:inline-block; border:1px solid #93c5fd;'>Risiko Rendah</span>"
                 
                 bg_row = "#ffffff" if idx % 2 == 0 else "#f8fafc"
-                html_table += f"""
-                    <tr style="background-color:{bg_row}; border-bottom:1px solid #edf2f7;">
-                        <td style="padding:10px 6px; font-weight:700; color:#1e293b; font-size:0.85rem;">{row['country']}</td>
-                        <td style="padding:10px 6px; text-align:center; color:#3b82f6; font-weight:600; font-size:0.85rem;">{row['Risiko Rendah']:,}</td>
-                        <td style="padding:10px 6px; text-align:center; color:#f97316; font-weight:600; font-size:0.85rem;">{row['Risiko Sedang']:,}</td>
-                        <td style="padding:10px 6px; text-align:center; color:#ef4444; font-weight:600; font-size:0.85rem;">{row['Risiko Tinggi']:,}</td>
-                        <td style="padding:10px 6px; text-align:center; font-weight:700; color:#1e293b; font-size:0.85rem;">{row['Total Gempa']:,}</td>
-                        <td style="padding:10px 6px; text-align:center;">{badge}</td>
-                    </tr>
-                """
+                html_table += (
+                    f"<tr style='background-color:{bg_row}; border-bottom:1px solid #edf2f7;'>"
+                    f"<td style='padding:10px 6px; font-weight:700; color:#1e293b; font-size:0.85rem;'>{row['country']}</td>"
+                    f"<td style='padding:10px 6px; text-align:center; color:#3b82f6; font-weight:600; font-size:0.85rem;'>{row['Risiko Rendah']:,}</td>"
+                    f"<td style='padding:10px 6px; text-align:center; color:#f97316; font-weight:600; font-size:0.85rem;'>{row['Risiko Sedang']:,}</td>"
+                    f"<td style='padding:10px 6px; text-align:center; color:#ef4444; font-weight:600; font-size:0.85rem;'>{row['Risiko Tinggi']:,}</td>"
+                    f"<td style='padding:10px 6px; text-align:center; font-weight:700; color:#1e293b; font-size:0.85rem;'>{row['Total Gempa']:,}</td>"
+                    f"<td style='padding:10px 6px; text-align:center;'>{badge}</td>"
+                    f"</tr>"
+                )
             html_table += "</tbody></table></div>"
             st.markdown(html_table, unsafe_allow_html=True)
             
