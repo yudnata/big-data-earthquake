@@ -171,7 +171,7 @@ menu = st.sidebar.radio(
     [
         "Ringkasan & Tren Seismik", 
         "Peta Zona Rawan Spasial (Ring of Fire)", 
-        "Peta & Profil Bahaya Gempa (Hazard)"
+        "Klasifikasi Risiko Negara (Top 10)"
     ]
 )
 
@@ -319,11 +319,11 @@ elif menu == "Peta Zona Rawan Spasial (Ring of Fire)":
                 
                 folium.CircleMarker(
                     location=[row['latitude'], row['longitude']],
-                    radius=max(3, row['mag'] * 1.5),
-                    color=color,
+                    radius=max(2.5, row['mag'] * 0.7),
+                    stroke=False,
                     fill=True,
                     fill_color=color,
-                    fill_opacity=0.6,
+                    fill_opacity=0.8,
                     popup=folium.Popup(popup_text, max_width=300)
                 ).add_to(m)
                 
@@ -334,218 +334,169 @@ elif menu == "Peta Zona Rawan Spasial (Ring of Fire)":
             cols = st.columns(3)
             for idx, info in sorted(HAZARD_INFO.items()):
                 with cols[idx]:
-                    st.markdown(f"<span style='color:{info['color']}; font-size:1.5rem;'>■</span> **{info['label']}**", unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div style='background-color:#ffffff; padding:16px; border-radius:10px;
+                                border-left: 5px solid {info['color']};
+                                box-shadow: 0 2px 6px rgba(0,0,0,0.05); height:100%;'>
+                        <strong style='color:#1A202C; font-size:0.95rem; display:block; margin-bottom:6px;'>
+                            {info['label']}
+                        </strong>
+                        <span style='color:#4A5568; font-size:0.85rem; line-height:1.5; display:block;'>
+                            {info['desc']}
+                        </span>
+                    </div>
+                    """, unsafe_allow_html=True)
         else:
             st.info("Tidak ada data gempa bumi pada rentang filter ini.")
 
 # --- PAGE 3: HAZARD PROFILING MAP ---
-elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
-    st.title("Klasifikasi Profil Bahaya Seismik")
+elif menu == "Klasifikasi Risiko Negara (Top 10)":
+    st.title("Klasifikasi Risiko Negara Teraktif")
     st.write(
-        "Menggunakan pendekatan **Klasifikasi Berbasis Aturan (Rule-Based Hazard Classification)**, setiap kejadian gempa "
-        "dikelompokkan berdasarkan dua parameter fisik utama: **kedalaman hiposenter** dan **magnitudo**. "
-        "Hasil klasifikasi menghasilkan 4 profil bahaya kustom yang berbeda secara karakteristik."
+        "Halaman ini menampilkan klasifikasi tingkat kerawanan seismik untuk 10 negara paling aktif gempa bumi. "
+        "Sistem secara otomatis mengelompokkan setiap negara ke dalam kategori **Risiko Tinggi (Rawan)**, **Risiko Sedang**, "
+        "atau **Risiko Rendah** berdasarkan gempa terberat yang pernah tercatat di wilayah tersebut."
     )
     
-    if hazard_df.empty:
-        st.warning("Data hazard kosong. Silakan jalankan notebook `03_data_analysis_hazard.ipynb`.")
+    if spatial_df.empty:
+        st.warning("Data kosong. Silakan jalankan notebook `03_custom_hazard_clustering.ipynb`.")
     else:
-        st.write(f"Menampilkan **{len(hazard_df):,}** total data kejadian gempa.")        
-
+        # Explanation Cards
+        st.markdown("### Logika Penentuan Risiko Negara")
+        info_cols = st.columns(3)
         
-        # Build HAZARD_INFO dynamically from actual centroid values in MongoDB data
-        HAZARD_INFO = build_hazard_info(hazard_df)
-        
-        # Prepare labelled data once, reuse across all charts
-        plot_data = hazard_df.copy()
-        plot_data['Kategori Bahaya'] = plot_data['kmeans_cluster'].map(
-            lambda x: HAZARD_INFO.get(int(x), {"label": "Unknown"})["label"]
-        )
-        color_map = {v['label']: v['color'] for k, v in HAZARD_INFO.items()}
-
-        # Auto-compute insights
-        total = len(plot_data)
-        cluster_pct = plot_data['Kategori Bahaya'].value_counts(normalize=True) * 100
-        dominant = cluster_pct.idxmax() if not cluster_pct.empty else "-"
-        dominant_pct = cluster_pct.max() if not cluster_pct.empty else 0
-        danger_label = HAZARD_INFO[1]['label']
-        danger_pct = cluster_pct.get(danger_label, 0)
-        
-        # ============================================================
-        # SECTION 1: Scatter Plot — Sebaran Klaster di Ruang Fitur
-        # ============================================================
-        st.subheader("1. Sebaran Klaster: Kekuatan vs Kedalaman Gempa")
-        st.caption(
-            "Grafik ini menunjukkan posisi setiap gempa dalam koordinat kekuatan (magnitudo) dan kedalaman. "
-            "Warna mewakili kategori bahaya hasil pengelompokan otomatis. "
-            "Sumbu kedalaman dibalik: angka 0 di atas = permukaan bumi, semakin ke bawah = semakin jauh ke dalam bumi."
-        )
-        if not plot_data.empty:
-            fig_scatter = px.scatter(
-                plot_data.sample(n=min(8000, len(plot_data)), random_state=42),
-                x='mag', y='depth', color='Kategori Bahaya',
-                color_discrete_map=color_map,
-                labels={'mag': 'Magnitudo', 'depth': 'Kedalaman (km)', 'Kategori Bahaya': 'Profil Bahaya'},
-                opacity=0.65,
-                hover_data={'mag': ':.2f', 'depth': ':.1f'}
-            )
-            fig_scatter.update_layout(
-                font=dict(color='#2D3748', size=13),
-                xaxis=dict(gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
-                yaxis=dict(autorange='reversed', gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
-                legend=dict(font=dict(color='#2D3748'), title_font=dict(color='#2D3748')),
-                plot_bgcolor='white', paper_bgcolor='white', height=470
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
-            
-            # Build per-cluster percentage rows
-            cluster_rows = []
-            for cid, info in sorted(HAZARD_INFO.items()):
-                lbl = info['label']
-                pct = cluster_pct.get(lbl, 0)
-                cnt = int(round(pct / 100 * total))
-                cluster_rows.append((lbl, info['color'], pct, cnt))
-
-            # Find "Risiko Tinggi" cluster dynamically
-            danger_label = next(
-                (info['label'] for info in HAZARD_INFO.values()
-                 if 'Tinggi' in info['label']),
-                cluster_rows[0][0]
-            )
-            danger_pct = cluster_pct.get(danger_label, 0)
-
-            # Render insight box using markdown with HTML
-            rows_html = "".join(
-                f"<tr>"
-                f"<td style='padding:5px 16px 5px 0; white-space:nowrap;'>"
-                f"<span style='display:inline-block;width:11px;height:11px;border-radius:50%;"
-                f"background:{color};margin-right:7px;vertical-align:middle;'></span>"
-                f"<b>{label}</b></td>"
-                f"<td style='padding:5px 12px; font-weight:700; color:#1A202C;'>{pct:.1f}%</td>"
-                f"<td style='padding:5px 0; color:#4A5568;'>{count:,} gempa</td>"
-                f"</tr>"
-                for label, color, pct, count in cluster_rows
-            )
+        with info_cols[0]:
             st.markdown(
-                f"""<div style="background-color:#ebf8ff; border-left:4px solid #3182ce;
-                              padding:16px 20px; border-radius:6px; margin-top:8px;">
-                    <p style="font-weight:700; color:#2C5282; margin:0 0 12px 0; font-size:0.97rem;">
-                        Temuan Utama &mdash; Total <strong>{total:,}</strong> gempa diklasifikasikan ke dalam 3 profil bahaya:
-                    </p>
-                    <table style="border-collapse:collapse; width:auto;">{rows_html}</table>
-                    <p style="margin:12px 0 0 0; color:#2D3748; font-size:0.9rem;">
-                        Kategori paling berbahaya (<em>{danger_label}</em>) mewakili
-                        <strong>{danger_pct:.1f}%</strong> dari seluruh kejadian &mdash;
-                        meskipun proporsinya kecil, dampaknya terhadap permukaan sangat signifikan.
-                    </p>
-                </div>""",
+                "<div style='background-color:#fee2e2; padding:16px; border-radius:8px; border-left:5px solid #dc2626; height:100%;'>"
+                "<strong style='color:#dc2626; font-size:0.95rem; display:block; margin-bottom:6px;'>Risiko Tinggi (Rawan)</strong>"
+                "<span style='color:#4A5568; font-size:0.85rem; line-height:1.4; display:block;'>"
+                "Negara diklasifikasikan sebagai <strong>Risiko Tinggi (Rawan)</strong> jika memiliki minimal 1 kejadian gempa Risiko Tinggi (Cluster 2). "
+                "Meskipun jumlahnya sedikit, potensi gempa merusak sangat membahayakan wilayah daratan."
+                "</span></div>",
                 unsafe_allow_html=True
             )
-
-        else:
-            st.info("Tidak ada data untuk divisualisasikan.")
+        with info_cols[1]:
+            st.markdown(
+                "<div style='background-color:#ffedd5; padding:16px; border-radius:8px; border-left:5px solid #ea580c; height:100%;'>"
+                "<strong style='color:#ea580c; font-size:0.95rem; display:block; margin-bottom:6px;'>Risiko Sedang</strong>"
+                "<span style='color:#4A5568; font-size:0.85rem; line-height:1.4; display:block;'>"
+                "Negara diklasifikasikan sebagai <strong>Risiko Sedang</strong> jika tidak mendeteksi gempa Risiko Tinggi, tetapi memiliki minimal 1 kejadian gempa Risiko Sedang (Cluster 1)."
+                "</span></div>",
+                unsafe_allow_html=True
+            )
+        with info_cols[2]:
+            st.markdown(
+                "<div style='background-color:#dbeafe; padding:16px; border-radius:8px; border-left:5px solid #2563eb; height:100%;'>"
+                "<strong style='color:#2563eb; font-size:0.95rem; display:block; margin-bottom:6px;'>Risiko Rendah</strong>"
+                "<span style='color:#4A5568; font-size:0.85rem; line-height:1.4; display:block;'>"
+                "Negara diklasifikasikan sebagai <strong>Risiko Rendah</strong> jika seluruh gempa yang tercatat di wilayah tersebut hanya berkategori gempa minor/lemah (Cluster 0)."
+                "</span></div>",
+                unsafe_allow_html=True
+            )
         
-        # ============================================================
-        # SECTION 2: Peta Spasial Distribusi Bahaya Gempa (Geospatial Map)
-        # ============================================================
-        st.subheader("2. Peta Spasial Distribusi Bahaya Gempa")
-        st.caption(
-            "Peta interaktif sebaran lokasi kejadian gempa bumi berdasarkan kategori bahaya di seluruh dunia. "
-            "Pola titik merah di sekitar Indonesia menunjukkan wilayah rawan bencana (Ring of Fire) dengan bahaya tinggi."
-        )
-        sample_size_haz = min(3000, len(plot_data))
-        if sample_size_haz > 0:
-            map_data_haz = plot_data.sample(n=sample_size_haz, random_state=42)
-            # Map Initialization (bounded world map with tectonic plates)
-            m_haz = create_world_map(center=[0, 115], zoom=3)
-            
-            for _, row in map_data_haz.iterrows():
-                cluster = int(row['kmeans_cluster'])
-                info = HAZARD_INFO.get(cluster, {"label": "Unknown", "color": "#718096"})
-                color = info["color"]
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Calculations
+        valid_countries_df = spatial_df[spatial_df['country'].notna() & (spatial_df['country'] != '')]
+        
+        # Group by country and hazard cluster
+        country_stats = valid_countries_df.groupby(['country', 'kmeans_cluster']).size().unstack(fill_value=0)
+        
+        # Ensure columns 0, 1, 2 exist
+        for col_idx in [0, 1, 2]:
+            if col_idx not in country_stats.columns:
+                country_stats[col_idx] = 0
+        
+        country_stats = country_stats.rename(columns={
+            0: 'Risiko Rendah',
+            1: 'Risiko Sedang',
+            2: 'Risiko Tinggi'
+        })
+        
+        country_stats['Total Gempa'] = country_stats['Risiko Rendah'] + country_stats['Risiko Sedang'] + country_stats['Risiko Tinggi']
+        top_10_countries = country_stats.sort_values(by='Total Gempa', ascending=False).head(10).reset_index()
+        
+        def classify_country_risk(row):
+            if row['Risiko Tinggi'] > 0:
+                return 'Risiko Tinggi (Rawan)'
+            elif row['Risiko Sedang'] > 0:
+                return 'Risiko Sedang'
+            else:
+                return 'Risiko Rendah'
+        
+        top_10_countries['Klasifikasi Risiko'] = top_10_countries.apply(classify_country_risk, axis=1)
+        
+        # Layout: Table left, Stacked Chart right
+        tab_col1, tab_col2 = st.columns([1.1, 0.9])
+        
+        with tab_col1:
+            st.subheader("Tabel Distribusi & Klasifikasi Negara")
+            # Premium HTML Table
+            html_table = """
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; margin-top:10px; font-family:inherit;">
+                    <thead>
+                        <tr style="background-color:#f8fafc; border-bottom:2px solid #e2e8f0; text-align:left;">
+                            <th style="padding:10px 6px; color:#475569; font-weight:600; font-size:0.85rem;">Negara</th>
+                            <th style="padding:10px 6px; color:#3b82f6; font-weight:600; font-size:0.85rem; text-align:center;">Risiko Rendah</th>
+                            <th style="padding:10px 6px; color:#f97316; font-weight:600; font-size:0.85rem; text-align:center;">Risiko Sedang</th>
+                            <th style="padding:10px 6px; color:#ef4444; font-weight:600; font-size:0.85rem; text-align:center;">Risiko Tinggi</th>
+                            <th style="padding:10px 6px; color:#1e293b; font-weight:700; font-size:0.85rem; text-align:center;">Total</th>
+                            <th style="padding:10px 6px; color:#1e293b; font-weight:600; font-size:0.85rem; text-align:center;">Klasifikasi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            """
+            for idx, row in top_10_countries.iterrows():
+                risk = row['Klasifikasi Risiko']
+                if risk == 'Risiko Tinggi (Rawan)':
+                    badge = "<span style='background-color:#fee2e2; color:#dc2626; padding:3px 6px; border-radius:4px; font-weight:700; font-size:0.75rem; display:inline-block; border:1px solid #fca5a5;'>Risiko Tinggi (Rawan)</span>"
+                elif risk == 'Risiko Sedang':
+                    badge = "<span style='background-color:#ffedd5; color:#ea580c; padding:3px 6px; border-radius:4px; font-weight:700; font-size:0.75rem; display:inline-block; border:1px solid #fdba74;'>Risiko Sedang</span>"
+                else:
+                    badge = "<span style='background-color:#dbeafe; color:#2563eb; padding:3px 6px; border-radius:4px; font-weight:700; font-size:0.75rem; display:inline-block; border:1px solid #93c5fd;'>Risiko Rendah</span>"
                 
-                popup_text = f"""
-                <b>Lokasi:</b> {row['place']}<br>
-                <b>Negara:</b> {row['country']}<br>
-                <b>Magnitudo:</b> {row['mag']:.2f}<br>
-                <b>Kedalaman:</b> {row['depth']:.1f} km<br>
-                <b>Profil Bahaya:</b> {info['label']}
+                bg_row = "#ffffff" if idx % 2 == 0 else "#f8fafc"
+                html_table += f"""
+                    <tr style="background-color:{bg_row}; border-bottom:1px solid #edf2f7;">
+                        <td style="padding:10px 6px; font-weight:700; color:#1e293b; font-size:0.85rem;">{row['country']}</td>
+                        <td style="padding:10px 6px; text-align:center; color:#3b82f6; font-weight:600; font-size:0.85rem;">{row['Risiko Rendah']:,}</td>
+                        <td style="padding:10px 6px; text-align:center; color:#f97316; font-weight:600; font-size:0.85rem;">{row['Risiko Sedang']:,}</td>
+                        <td style="padding:10px 6px; text-align:center; color:#ef4444; font-weight:600; font-size:0.85rem;">{row['Risiko Tinggi']:,}</td>
+                        <td style="padding:10px 6px; text-align:center; font-weight:700; color:#1e293b; font-size:0.85rem;">{row['Total Gempa']:,}</td>
+                        <td style="padding:10px 6px; text-align:center;">{badge}</td>
+                    </tr>
                 """
-                
-                folium.CircleMarker(
-                    location=[row['latitude'], row['longitude']],
-                    radius=max(3, row['mag'] * 1.5),
-                    color=color,
-                    fill=True,
-                    fill_color=color,
-                    fill_opacity=0.6,
-                    popup=folium.Popup(popup_text, max_width=300)
-                ).add_to(m_haz)
-                
-            st.components.v1.html(m_haz._repr_html_(), height=600)
-        
-
-
-        
-        # ============================================================
-        # SECTION 3: Proporsi Klaster (Bar Chart full width)
-        # ===========================================================
-        st.subheader("3. Frekuensi Setiap Kategori Bahaya")
-        st.caption("Seberapa sering tiap jenis bahaya gempa terjadi dari total data yang dianalisis?")
-        
-        cluster_counts = plot_data['Kategori Bahaya'].value_counts().reset_index()
-        cluster_counts.columns = ['Kategori Bahaya', 'Jumlah']
-        order = [HAZARD_INFO[i]['label'] for i in sorted(HAZARD_INFO.keys())]
-        cluster_counts['sort_key'] = cluster_counts['Kategori Bahaya'].map(
-            {v: k for k, v in enumerate(order)}
-        )
-        cluster_counts = cluster_counts.sort_values('sort_key')
-        
-        fig_bar = px.bar(
-            cluster_counts, x='Jumlah', y='Kategori Bahaya', orientation='h',
-            color='Kategori Bahaya', color_discrete_map=color_map,
-            labels={'Jumlah': 'Jumlah Kejadian', 'Kategori Bahaya': ''},
-            text='Jumlah'
-        )
-        fig_bar.update_traces(texttemplate='%{text:,}', textposition='outside')
-        fig_bar.update_layout(
-            showlegend=False,
-            font=dict(color='#2D3748', size=13),
-            xaxis=dict(gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
-            yaxis=dict(title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748', size=11)),
-            plot_bgcolor='white', paper_bgcolor='white', height=320,
-            margin=dict(r=80)
-        )
-        st.plotly_chart(fig_bar, use_container_width=True)
-        
-
-        
-        # ============================================================
-        # SECTION 4: Kartu Deskripsi Klaster
-        # ============================================================
-        st.subheader("4. Penjelasan Setiap Kategori Profil Bahaya")
-        st.caption(
-            "Interpretasi dari setiap klaster berdasarkan kombinasi magnitudo dan kedalaman gempa "
-            "yang dihasilkan model K-Means:"
-        )
-        desc_cols = st.columns(len(HAZARD_INFO))
-        for cluster_id, info in HAZARD_INFO.items():
-            with desc_cols[cluster_id]:
-                st.markdown(f"""
-                <div style="background-color:#ffffff; padding:18px; border-radius:12px;
-                            border-top: 5px solid {info['color']};
-                            box-shadow: 0 4px 10px rgba(0,0,0,0.08); height:100%;">
-                    <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
-                                letter-spacing:0.1em; color:{info['color']}; margin-bottom:8px;">
-                        Klaster {cluster_id}
-                    </div>
-                    <strong style="color:#1A202C; font-size:0.95rem; display:block;
-                                   margin-bottom:10px; line-height:1.35;">
-                        {info['label']}
-                    </strong>
-                    <span style="color:#4A5568; font-size:0.85rem; line-height:1.65;">
-                        {info['desc']}
-                    </span>
-                </div>
-                """, unsafe_allow_html=True)
+            html_table += "</tbody></table></div>"
+            st.markdown(html_table, unsafe_allow_html=True)
+            
+        with tab_col2:
+            st.subheader("Grafik Proporsi Risiko per Negara")
+            plot_df_melted = top_10_countries.melt(
+                id_vars=['country', 'Total Gempa', 'Klasifikasi Risiko'],
+                value_vars=['Risiko Rendah', 'Risiko Sedang', 'Risiko Tinggi'],
+                var_name='Tingkat Risiko',
+                value_name='Jumlah Gempa'
+            )
+            fig_stacked = px.bar(
+                plot_df_melted, x='Jumlah Gempa', y='country', color='Tingkat Risiko',
+                orientation='h',
+                color_discrete_map={
+                    'Risiko Rendah': '#3b82f6',
+                    'Risiko Sedang': '#f97316',
+                    'Risiko Tinggi': '#ef4444'
+                },
+                labels={'Jumlah Gempa': 'Jumlah Gempa', 'country': 'Negara'}
+            )
+            fig_stacked.update_layout(
+                yaxis={'categoryorder': 'total ascending'},
+                font=dict(color='#2D3748', size=11),
+                xaxis=dict(gridcolor='#e2e8f0', title_font=dict(color='#2D3748'), tickfont=dict(color='#2D3748')),
+                yaxis_title=None,
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                height=380,
+                margin=dict(l=0, r=10, t=10, b=10)
+            )
+            st.plotly_chart(fig_stacked, use_container_width=True)
 
