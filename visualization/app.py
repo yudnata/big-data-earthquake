@@ -1,12 +1,54 @@
 import os
+import json
 import streamlit as st
 import pandas as pd
 import numpy as np
 import folium
-from folium.plugins import MarkerCluster
+import requests
 import plotly.express as px
 from pymongo import MongoClient
 from dotenv import load_dotenv
+
+# ── Tectonic Plates GeoJSON (cached globally) ──────────────────────────
+_TECTONIC_GEOJSON_URL = "https://raw.githubusercontent.com/fraxen/tectonicplates/master/GeoJSON/PB2002_boundaries.json"
+
+@st.cache_data(ttl=86400)
+def _load_tectonic_plates():
+    """Download and cache tectonic plate boundaries GeoJSON."""
+    try:
+        resp = requests.get(_TECTONIC_GEOJSON_URL, timeout=15)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception:
+        return None
+
+def create_world_map(center=(10, 20), zoom=2):
+    """Create a bounded Folium world map with tectonic plate boundary overlay."""
+    m = folium.Map(
+        location=center,
+        zoom_start=zoom,
+        tiles="CartoDB positron",
+        max_bounds=True,
+        min_zoom=2,
+        max_zoom=12,
+    )
+    # Restrict panning to world bounds so the map cannot be scrolled infinitely
+    m.fit_bounds([[-60, -180], [75, 180]])
+
+    # Add tectonic plate boundary lines
+    plates_geojson = _load_tectonic_plates()
+    if plates_geojson:
+        folium.GeoJson(
+            plates_geojson,
+            name="Lempeng Tektonik",
+            style_function=lambda _: {
+                "color": "#dc2626",
+                "weight": 1.8,
+                "opacity": 0.7,
+                "dashArray": "5 3",
+            },
+        ).add_to(m)
+    return m
 
 # Set page configuration
 st.set_page_config(
@@ -138,16 +180,14 @@ menu = st.sidebar.radio(
 # Colors for mapping clusters
 SPATIAL_COLORS = ['#e53e3e', '#3182ce', '#38a169', '#dd6b20', '#805ad5', '#d69e2e', '#319795', '#b7791f']
 
-# Warna dan deskripsi per kategori bahaya (4 kategori tetap)
+# Warna dan deskripsi per kategori bahaya (3 tingkat bahaya)
 _HAZARD_PALETTE = [
-    {"key": "dangkal_lemah",   "color": "#3b82f6", "label": "Dangkal & Lemah",
-     "desc": "Magnitudo rendah (< 4.0), kedalaman dangkal (< 70 km). Sangat sering terjadi, risiko bahaya sangat rendah. Umumnya hanya dirasakan peralatan seismograf dan tidak menimbulkan kerusakan."},
-    {"key": "dangkal_kuat",    "color": "#ef4444", "label": "Dangkal & Kuat",
-     "desc": "Magnitudo tinggi (>= 5.5), kedalaman dangkal (< 70 km). Jenis paling merusak — melepaskan energi besar dekat permukaan. Berpotensi tsunami dan menyebabkan kerusakan bangunan masif."},
-    {"key": "menengah_sedang", "color": "#10b981", "label": "Menengah & Sedang",
-     "desc": "Magnitudo sedang (4.0–5.5), kedalaman menengah (70–300 km). Getaran dirasakan sedang oleh penduduk. Kerusakan ringan hingga sedang pada bangunan tidak tahan gempa."},
-    {"key": "dalam_kuat",      "color": "#f97316", "label": "Dalam & Kuat",
-     "desc": "Magnitudo tinggi (> 5.5), kedalaman sangat dalam (> 300 km). Terjadi di zona subduksi dalam. Getaran terasa di area luas namun jarang menimbulkan kerusakan struktural masif."},
+    {"key": "rendah",  "color": "#3b82f6", "label": "Risiko Rendah",
+     "desc": "Gempa minor (magnitudo < 4.0) di semua kedalaman, atau gempa dalam (> 300 km) dengan magnitudo sedang. Sangat aman dan hampir tidak menimbulkan dampak permukaan."},
+    {"key": "sedang",  "color": "#f97316", "label": "Risiko Sedang",
+     "desc": "Gempa kekuatan sedang (4.0 - 5.5 SR) di kedalaman dangkal/menengah (depth <= 300 km), atau gempa berkekuatan tinggi (>= 5.5 SR) di kedalaman menengah/dalam (>= 70 km). Getaran terasa jelas, namun risiko kerusakan struktural masif relatif rendah."},
+    {"key": "tinggi",  "color": "#ef4444", "label": "Risiko Tinggi",
+     "desc": "Gempa berkekuatan tinggi (>= 5.5 SR) pada kedalaman dangkal (< 70 km). Merupakan gempa paling merusak karena pusat energi berada sangat dekat dengan permukaan bumi dan berpotensi tsunami."},
 ]
 
 def build_hazard_info(df: pd.DataFrame) -> dict:
@@ -155,10 +195,9 @@ def build_hazard_info(df: pd.DataFrame) -> dict:
     Mengembalikan label bahaya kustom yang konsisten dengan hasil notebook clustering aturan (rule-based).
     """
     return {
-        0: {"label": "Cluster 0: Dangkal & Lemah", "color": _HAZARD_PALETTE[0]["color"], "desc": _HAZARD_PALETTE[0]["desc"]},
-        1: {"label": "Cluster 1: Dangkal & Kuat", "color": _HAZARD_PALETTE[1]["color"], "desc": _HAZARD_PALETTE[1]["desc"]},
-        2: {"label": "Cluster 2: Menengah & Sedang", "color": _HAZARD_PALETTE[2]["color"], "desc": _HAZARD_PALETTE[2]["desc"]},
-        3: {"label": "Cluster 3: Dalam & Kuat", "color": _HAZARD_PALETTE[3]["color"], "desc": _HAZARD_PALETTE[3]["desc"]}
+        0: {"label": "Risiko Rendah", "color": _HAZARD_PALETTE[0]["color"], "desc": _HAZARD_PALETTE[0]["desc"]},
+        1: {"label": "Risiko Sedang", "color": _HAZARD_PALETTE[1]["color"], "desc": _HAZARD_PALETTE[1]["desc"]},
+        2: {"label": "Risiko Tinggi", "color": _HAZARD_PALETTE[2]["color"], "desc": _HAZARD_PALETTE[2]["desc"]}
     }
 
 HAZARD_INFO = build_hazard_info(pd.DataFrame())  # placeholder; rebuilt on page load
@@ -262,11 +301,8 @@ elif menu == "Peta Zona Rawan Spasial (Ring of Fire)":
         if sample_size > 0:
             map_data = spatial_df.sample(n=sample_size, random_state=42)
             
-            # Map Initialization
-            m = folium.Map(location=[0, 115], zoom_start=3, tiles="CartoDB positron")
-            
-            # Create MarkerCluster group
-            marker_cluster_spatial = MarkerCluster().add_to(m)
+            # Map Initialization (bounded world map with tectonic plates)
+            m = create_world_map(center=[0, 115], zoom=3)
             
             for _, row in map_data.iterrows():
                 cluster = int(row['kmeans_cluster'])
@@ -288,7 +324,7 @@ elif menu == "Peta Zona Rawan Spasial (Ring of Fire)":
                     fill_color=color,
                     fill_opacity=0.6,
                     popup=folium.Popup(popup_text, max_width=300)
-                ).add_to(marker_cluster_spatial)
+                ).add_to(m)
                 
             st.components.v1.html(m._repr_html_(), height=600)
             
@@ -370,10 +406,10 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
                 cnt = int(round(pct / 100 * total))
                 cluster_rows.append((lbl, info['color'], pct, cnt))
 
-            # Find "Dangkal & Kuat" cluster dynamically
+            # Find "Risiko Tinggi" cluster dynamically
             danger_label = next(
                 (info['label'] for info in HAZARD_INFO.values()
-                 if 'Kuat' in info['label'] and 'Dalam' not in info['label']),
+                 if 'Tinggi' in info['label']),
                 cluster_rows[0][0]
             )
             danger_pct = cluster_pct.get(danger_label, 0)
@@ -394,7 +430,7 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
                 f"""<div style="background-color:#ebf8ff; border-left:4px solid #3182ce;
                               padding:16px 20px; border-radius:6px; margin-top:8px;">
                     <p style="font-weight:700; color:#2C5282; margin:0 0 12px 0; font-size:0.97rem;">
-                        Temuan Utama &mdash; Total <strong>{total:,}</strong> gempa diklasifikasikan ke dalam 4 profil bahaya:
+                        Temuan Utama &mdash; Total <strong>{total:,}</strong> gempa diklasifikasikan ke dalam 3 profil bahaya:
                     </p>
                     <table style="border-collapse:collapse; width:auto;">{rows_html}</table>
                     <p style="margin:12px 0 0 0; color:#2D3748; font-size:0.9rem;">
@@ -420,11 +456,8 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
         sample_size_haz = min(3000, len(plot_data))
         if sample_size_haz > 0:
             map_data_haz = plot_data.sample(n=sample_size_haz, random_state=42)
-            # Map Initialization (center around Indonesia [0, 115])
-            m_haz = folium.Map(location=[0, 115], zoom_start=3, tiles="CartoDB positron")
-            
-            # Create MarkerCluster group
-            marker_cluster_haz = MarkerCluster().add_to(m_haz)
+            # Map Initialization (bounded world map with tectonic plates)
+            m_haz = create_world_map(center=[0, 115], zoom=3)
             
             for _, row in map_data_haz.iterrows():
                 cluster = int(row['kmeans_cluster'])
@@ -447,7 +480,7 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
                     fill_color=color,
                     fill_opacity=0.6,
                     popup=folium.Popup(popup_text, max_width=300)
-                ).add_to(marker_cluster_haz)
+                ).add_to(m_haz)
                 
             st.components.v1.html(m_haz._repr_html_(), height=600)
         
@@ -495,7 +528,7 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
             "Interpretasi dari setiap klaster berdasarkan kombinasi magnitudo dan kedalaman gempa "
             "yang dihasilkan model K-Means:"
         )
-        desc_cols = st.columns(4)
+        desc_cols = st.columns(len(HAZARD_INFO))
         for cluster_id, info in HAZARD_INFO.items():
             with desc_cols[cluster_id]:
                 st.markdown(f"""
