@@ -354,8 +354,8 @@ elif menu == "Klasifikasi Risiko Negara (Top 10)":
     st.title("Klasifikasi Risiko Negara Teraktif")
     st.write(
         "Halaman ini menampilkan klasifikasi tingkat kerawanan seismik untuk 10 negara paling aktif gempa bumi. "
-        "Sistem secara otomatis mengelompokkan setiap negara ke dalam kategori **Risiko Tinggi (Rawan)**, **Risiko Sedang**, "
-        "atau **Risiko Rendah** berdasarkan gempa terberat yang pernah tercatat di wilayah tersebut."
+        "Sistem secara otomatis mengelompokkan setiap negara ke dalam kategori **RISIKO RAWAN**, **RISIKO SEDANG**, "
+        "atau **RISIKO RENDAH** berdasarkan tingkat frekuensi kegempaan dan kejadian gempa berbahaya."
     )
     
     if spatial_df.empty:
@@ -368,28 +368,27 @@ elif menu == "Klasifikasi Risiko Negara (Top 10)":
         with info_cols[0]:
             st.markdown(
                 "<div style='background-color:#fee2e2; padding:16px; border-radius:8px; border-left:5px solid #dc2626; height:100%;'>"
-                "<strong style='color:#dc2626; font-size:0.95rem; display:block; margin-bottom:6px;'>Risiko Tinggi (Rawan)</strong>"
+                "<strong style='color:#dc2626; font-size:0.95rem; display:block; margin-bottom:6px;'>RISIKO RAWAN</strong>"
                 "<span style='color:#4A5568; font-size:0.85rem; line-height:1.4; display:block;'>"
-                "Negara diklasifikasikan sebagai <strong>Risiko Tinggi (Rawan)</strong> jika memiliki minimal 1 kejadian gempa Risiko Tinggi (Cluster 2). "
-                "Meskipun jumlahnya sedikit, potensi gempa merusak sangat membahayakan wilayah daratan."
+                "Negara diklasifikasikan sebagai <strong>RISIKO RAWAN</strong> jika memiliki frekuensi gempa sangat tinggi (Total &ge; 5.000) ATAU memiliki jumlah gempa berbahaya yang signifikan (Risiko Tinggi &ge; 5 kejadian ATAU Risiko Sedang &ge; 400 kejadian)."
                 "</span></div>",
                 unsafe_allow_html=True
             )
         with info_cols[1]:
             st.markdown(
                 "<div style='background-color:#ffedd5; padding:16px; border-radius:8px; border-left:5px solid #ea580c; height:100%;'>"
-                "<strong style='color:#ea580c; font-size:0.95rem; display:block; margin-bottom:6px;'>Risiko Sedang</strong>"
+                "<strong style='color:#ea580c; font-size:0.95rem; display:block; margin-bottom:6px;'>RISIKO SEDANG</strong>"
                 "<span style='color:#4A5568; font-size:0.85rem; line-height:1.4; display:block;'>"
-                "Negara diklasifikasikan sebagai <strong>Risiko Sedang</strong> jika tidak mendeteksi gempa Risiko Tinggi, tetapi memiliki minimal 1 kejadian gempa Risiko Sedang (Cluster 1)."
+                "Negara diklasifikasikan sebagai <strong>RISIKO SEDANG</strong> jika memiliki aktivitas menengah (Total &ge; 1.000), atau mendeteksi frekuensi gempa berbahaya tingkat sedang (Risiko Tinggi &ge; 1 kejadian ATAU Risiko Sedang &ge; 50 kejadian)."
                 "</span></div>",
                 unsafe_allow_html=True
             )
         with info_cols[2]:
             st.markdown(
                 "<div style='background-color:#dbeafe; padding:16px; border-radius:8px; border-left:5px solid #2563eb; height:100%;'>"
-                "<strong style='color:#2563eb; font-size:0.95rem; display:block; margin-bottom:6px;'>Risiko Rendah</strong>"
+                "<strong style='color:#2563eb; font-size:0.95rem; display:block; margin-bottom:6px;'>RISIKO RENDAH</strong>"
                 "<span style='color:#4A5568; font-size:0.85rem; line-height:1.4; display:block;'>"
-                "Negara diklasifikasikan sebagai <strong>Risiko Rendah</strong> jika seluruh gempa yang tercatat di wilayah tersebut hanya berkategori gempa minor/lemah (Cluster 0)."
+                "Negara diklasifikasikan sebagai <strong>RISIKO RENDAH</strong> jika memiliki aktivitas gempa yang rendah (Total &lt; 1.000 dan Risiko Tinggi = 0 dan Risiko Sedang &lt; 50 kejadian)."
                 "</span></div>",
                 unsafe_allow_html=True
             )
@@ -416,13 +415,14 @@ elif menu == "Klasifikasi Risiko Negara (Top 10)":
         country_stats['Total Gempa'] = country_stats['Risiko Rendah'] + country_stats['Risiko Sedang'] + country_stats['Risiko Tinggi']
         top_10_countries = country_stats.sort_values(by='Total Gempa', ascending=False).head(10).reset_index()
         
+        # Classify risk category based on frequency and severity
         def classify_country_risk(row):
-            if row['Risiko Tinggi'] > 0:
-                return 'Risiko Tinggi (Rawan)'
-            elif row['Risiko Sedang'] > 0:
-                return 'Risiko Sedang'
+            if row['Risiko Tinggi'] >= 5 or row['Risiko Sedang'] >= 400 or row['Total Gempa'] >= 5000:
+                return 'RISIKO RAWAN'
+            elif row['Risiko Tinggi'] >= 1 or row['Risiko Sedang'] >= 50 or row['Total Gempa'] >= 1000:
+                return 'RISIKO SEDANG'
             else:
-                return 'Risiko Rendah'
+                return 'RISIKO RENDAH'
         
         top_10_countries['Klasifikasi Risiko'] = top_10_countries.apply(classify_country_risk, axis=1)
         
@@ -449,12 +449,12 @@ elif menu == "Klasifikasi Risiko Negara (Top 10)":
             )
             for idx, row in top_10_countries.iterrows():
                 risk = row['Klasifikasi Risiko']
-                if risk == 'Risiko Tinggi (Rawan)':
-                    badge = "<span style='background-color:#fee2e2; color:#dc2626; padding:3px 6px; border-radius:4px; font-weight:700; font-size:0.75rem; display:inline-block; border:1px solid #fca5a5;'>Risiko Tinggi (Rawan)</span>"
-                elif risk == 'Risiko Sedang':
-                    badge = "<span style='background-color:#ffedd5; color:#ea580c; padding:3px 6px; border-radius:4px; font-weight:700; font-size:0.75rem; display:inline-block; border:1px solid #fdba74;'>Risiko Sedang</span>"
+                if risk == 'RISIKO RAWAN':
+                    badge = "<span style='background-color:#fee2e2; color:#dc2626; padding:3px 6px; border-radius:4px; font-weight:700; font-size:0.75rem; display:inline-block; border:1px solid #fca5a5;'>RISIKO RAWAN</span>"
+                elif risk == 'RISIKO SEDANG':
+                    badge = "<span style='background-color:#ffedd5; color:#ea580c; padding:3px 6px; border-radius:4px; font-weight:700; font-size:0.75rem; display:inline-block; border:1px solid #fdba74;'>RISIKO SEDANG</span>"
                 else:
-                    badge = "<span style='background-color:#dbeafe; color:#2563eb; padding:3px 6px; border-radius:4px; font-weight:700; font-size:0.75rem; display:inline-block; border:1px solid #93c5fd;'>Risiko Rendah</span>"
+                    badge = "<span style='background-color:#dbeafe; color:#2563eb; padding:3px 6px; border-radius:4px; font-weight:700; font-size:0.75rem; display:inline-block; border:1px solid #93c5fd;'>RISIKO RENDAH</span>"
                 
                 bg_row = "#ffffff" if idx % 2 == 0 else "#f8fafc"
                 html_table += (
