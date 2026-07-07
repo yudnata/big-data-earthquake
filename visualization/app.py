@@ -156,12 +156,12 @@ def load_collection_data(collection_name):
         st.error(f"Gagal menghubungkan ke database: {e}")
         return pd.DataFrame()
 
-# Load datasets
-spatial_df = load_collection_data("kmeans_results_emsc")
-hazard_df = load_collection_data("custom_hazard_results_emsc")
-if not hazard_df.empty:
-    if 'hazard_cluster' in hazard_df.columns:
-        hazard_df['kmeans_cluster'] = hazard_df['hazard_cluster']
+# Load datasets from custom hazard collection (3 clusters: Risiko Rendah, Sedang, Tinggi)
+spatial_df = load_collection_data("custom_hazard_results_emsc")
+if not spatial_df.empty:
+    if 'hazard_cluster' in spatial_df.columns:
+        spatial_df['kmeans_cluster'] = spatial_df['hazard_cluster']
+hazard_df = spatial_df.copy()
 country_risk_df = load_collection_data("kmeans_country_risk_results_emsc")
 
 # Navigation Sidebar (No Emojis, Clean UI)
@@ -289,10 +289,10 @@ if menu == "Ringkasan & Tren Seismik":
 # --- PAGE 2: SPATIAL RING OF FIRE MAP ---
 elif menu == "Peta Zona Rawan Spasial (Ring of Fire)":
     st.title("Peta Zona Rawan Spasial (Ring of Fire)")
-    st.write("Mengelompokkan gempa berdasarkan lokasi geografis 3D (x, y, z) untuk memetakan batas lempeng sabuk gempa bumi global.")
+    st.write("Memetakan tingkat risiko bahaya gempa bumi global (Risiko Rendah, Sedang, Tinggi) secara spasial untuk melihat daerah-daerah rawan bencana di sepanjang batas lempeng tektonik.")
     
     if spatial_df.empty:
-        st.warning("Data spasial kosong. Silakan jalankan notebook `03_data_analysis.ipynb`.")
+        st.warning("Data spasial kosong. Silakan jalankan notebook `03_custom_hazard_clustering.ipynb`.")
     else:
         st.write(f"Menampilkan **{len(spatial_df):,}** total gempa.")
         
@@ -306,14 +306,15 @@ elif menu == "Peta Zona Rawan Spasial (Ring of Fire)":
             
             for _, row in map_data.iterrows():
                 cluster = int(row['kmeans_cluster'])
-                color = SPATIAL_COLORS[cluster % len(SPATIAL_COLORS)]
+                info = HAZARD_INFO.get(cluster, {"label": "Unknown", "color": "#718096"})
+                color = info["color"]
                 
                 popup_text = f"""
                 <b>Lokasi:</b> {row['place']}<br>
                 <b>Negara:</b> {row['country']}<br>
                 <b>Magnitudo:</b> {row['mag']:.2f}<br>
                 <b>Kedalaman:</b> {row['depth']:.1f} km<br>
-                <b>Klaster:</b> {cluster}
+                <b>Tingkat Risiko:</b> {info['label']}
                 """
                 
                 folium.CircleMarker(
@@ -329,12 +330,11 @@ elif menu == "Peta Zona Rawan Spasial (Ring of Fire)":
             st.components.v1.html(m._repr_html_(), height=600)
             
             # Legend mapping
-            st.markdown("### Keterangan Klaster Lokasi (Spasial)")
-            cols = st.columns(4)
-            for idx in range(8):
-                with cols[idx % 4]:
-                    color = SPATIAL_COLORS[idx]
-                    st.markdown(f"<span style='color:{color}; font-size:1.5rem;'>■</span> **Klaster {idx}**", unsafe_allow_html=True)
+            st.markdown("### Keterangan Tingkat Risiko Bahaya Spasial")
+            cols = st.columns(3)
+            for idx, info in sorted(HAZARD_INFO.items()):
+                with cols[idx]:
+                    st.markdown(f"<span style='color:{info['color']}; font-size:1.5rem;'>■</span> **{info['label']}**", unsafe_allow_html=True)
         else:
             st.info("Tidak ada data gempa bumi pada rentang filter ini.")
 
