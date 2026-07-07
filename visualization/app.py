@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import folium
+from folium.plugins import MarkerCluster
 import plotly.express as px
 from pymongo import MongoClient
 from dotenv import load_dotenv
@@ -264,6 +265,9 @@ elif menu == "Peta Zona Rawan Spasial (Ring of Fire)":
             # Map Initialization
             m = folium.Map(location=[0, 115], zoom_start=3, tiles="CartoDB positron")
             
+            # Create MarkerCluster group
+            marker_cluster_spatial = MarkerCluster().add_to(m)
+            
             for _, row in map_data.iterrows():
                 cluster = int(row['kmeans_cluster'])
                 color = SPATIAL_COLORS[cluster % len(SPATIAL_COLORS)]
@@ -284,7 +288,7 @@ elif menu == "Peta Zona Rawan Spasial (Ring of Fire)":
                     fill_color=color,
                     fill_opacity=0.6,
                     popup=folium.Popup(popup_text, max_width=300)
-                ).add_to(m)
+                ).add_to(marker_cluster_spatial)
                 
             st.components.v1.html(m._repr_html_(), height=600)
             
@@ -419,6 +423,9 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
             # Map Initialization (center around Indonesia [0, 115])
             m_haz = folium.Map(location=[0, 115], zoom_start=3, tiles="CartoDB positron")
             
+            # Create MarkerCluster group
+            marker_cluster_haz = MarkerCluster().add_to(m_haz)
+            
             for _, row in map_data_haz.iterrows():
                 cluster = int(row['kmeans_cluster'])
                 info = HAZARD_INFO.get(cluster, {"label": "Unknown", "color": "#718096"})
@@ -440,7 +447,7 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
                     fill_color=color,
                     fill_opacity=0.6,
                     popup=folium.Popup(popup_text, max_width=300)
-                ).add_to(m_haz)
+                ).add_to(marker_cluster_haz)
                 
             st.components.v1.html(m_haz._repr_html_(), height=600)
         
