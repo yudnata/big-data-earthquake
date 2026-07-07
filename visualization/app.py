@@ -142,7 +142,7 @@ _HAZARD_PALETTE = [
     {"key": "dangkal_lemah",   "color": "#3b82f6", "label": "Dangkal & Lemah",
      "desc": "Magnitudo rendah (< 4.0), kedalaman dangkal (< 70 km). Sangat sering terjadi, risiko bahaya sangat rendah. Umumnya hanya dirasakan peralatan seismograf dan tidak menimbulkan kerusakan."},
     {"key": "dangkal_kuat",    "color": "#ef4444", "label": "Dangkal & Kuat",
-     "desc": "Magnitudo tinggi (> 6.0), kedalaman dangkal (< 70 km). Jenis paling merusak — melepaskan energi besar dekat permukaan. Berpotensi tsunami dan menyebabkan kerusakan bangunan masif."},
+     "desc": "Magnitudo tinggi (>= 5.5), kedalaman dangkal (< 70 km). Jenis paling merusak — melepaskan energi besar dekat permukaan. Berpotensi tsunami dan menyebabkan kerusakan bangunan masif."},
     {"key": "menengah_sedang", "color": "#10b981", "label": "Menengah & Sedang",
      "desc": "Magnitudo sedang (4.0–5.5), kedalaman menengah (70–300 km). Getaran dirasakan sedang oleh penduduk. Kerusakan ringan hingga sedang pada bangunan tidak tahan gempa."},
     {"key": "dalam_kuat",      "color": "#f97316", "label": "Dalam & Kuat",
