@@ -102,7 +102,8 @@ def load_collection_data(collection_name):
             "_id": 0, "time": 1, "place": 1, "country": 1, 
             "latitude": 1, "longitude": 1, "depth": 1, "mag": 1, 
             "kmeans_cluster": 1, "bisect_cluster": 1, "quake_count": 1,
-            "avg_depth": 1, "avg_mag": 1, "max_mag": 1
+            "avg_depth": 1, "avg_mag": 1, "max_mag": 1,
+            "hazard_cluster": 1, "cluster_name": 1
         })
         df = pd.DataFrame(list(cursor))
         if not df.empty and 'time' in df.columns:
@@ -114,7 +115,10 @@ def load_collection_data(collection_name):
 
 # Load datasets
 spatial_df = load_collection_data("kmeans_results_emsc")
-hazard_df = load_collection_data("kmeans_hazard_results_emsc")
+hazard_df = load_collection_data("custom_hazard_results_emsc")
+if not hazard_df.empty:
+    if 'hazard_cluster' in hazard_df.columns:
+        hazard_df['kmeans_cluster'] = hazard_df['hazard_cluster']
 country_risk_df = load_collection_data("kmeans_country_risk_results_emsc")
 
 # Navigation Sidebar (No Emojis, Clean UI)
@@ -135,51 +139,26 @@ SPATIAL_COLORS = ['#e53e3e', '#3182ce', '#38a169', '#dd6b20', '#805ad5', '#d69e2
 
 # Warna dan deskripsi per kategori bahaya (4 kategori tetap)
 _HAZARD_PALETTE = [
-    {"key": "dangkal_lemah",   "color": "#3182ce", "label": "Dangkal & Lemah",
+    {"key": "dangkal_lemah",   "color": "#3b82f6", "label": "Dangkal & Lemah",
      "desc": "Magnitudo rendah (< 4.0), kedalaman dangkal (< 70 km). Sangat sering terjadi, risiko bahaya sangat rendah. Umumnya hanya dirasakan peralatan seismograf dan tidak menimbulkan kerusakan."},
-    {"key": "dangkal_kuat",    "color": "#e53e3e", "label": "Dangkal & Kuat",
+    {"key": "dangkal_kuat",    "color": "#ef4444", "label": "Dangkal & Kuat",
      "desc": "Magnitudo tinggi (> 6.0), kedalaman dangkal (< 70 km). Jenis paling merusak — melepaskan energi besar dekat permukaan. Berpotensi tsunami dan menyebabkan kerusakan bangunan masif."},
-    {"key": "menengah_sedang", "color": "#dd6b20", "label": "Menengah & Sedang",
+    {"key": "menengah_sedang", "color": "#10b981", "label": "Menengah & Sedang",
      "desc": "Magnitudo sedang (4.0–5.5), kedalaman menengah (70–300 km). Getaran dirasakan sedang oleh penduduk. Kerusakan ringan hingga sedang pada bangunan tidak tahan gempa."},
-    {"key": "dalam_kuat",      "color": "#d69e2e", "label": "Dalam & Kuat",
+    {"key": "dalam_kuat",      "color": "#f97316", "label": "Dalam & Kuat",
      "desc": "Magnitudo tinggi (> 5.5), kedalaman sangat dalam (> 300 km). Terjadi di zona subduksi dalam. Getaran terasa di area luas namun jarang menimbulkan kerusakan struktural masif."},
 ]
 
 def build_hazard_info(df: pd.DataFrame) -> dict:
     """
-    Menghitung centroid tiap klaster dari data aktual MongoDB,
-    lalu memetakan label bahaya yang tepat berdasarkan nilai centroid.
-    Tidak perlu re-run notebook sama sekali.
+    Mengembalikan label bahaya kustom yang konsisten dengan hasil notebook clustering aturan (rule-based).
     """
-    if df.empty or 'kmeans_cluster' not in df.columns:
-        # Fallback: pakai urutan default 0-3
-        return {i: {"label": f"Klaster {i}: {_HAZARD_PALETTE[i]['label']}",
-                    "color": _HAZARD_PALETTE[i]["color"],
-                    "desc":  _HAZARD_PALETTE[i]["desc"]} for i in range(4)}
-    
-    centroids = df.groupby('kmeans_cluster')[['mag', 'depth']].mean()
-    
-    # Tentukan kategori tiap klaster berdasarkan centroid:
-    # - dangkal = depth < 150 km (median antara shallow & mid)
-    # - kuat    = mag  > rata2 mag semua klaster
-    avg_mag   = centroids['mag'].mean()
-    avg_depth = centroids['depth'].mean()
-    
-    assigned = {}
-    for cluster_id, row in centroids.iterrows():
-        is_shallow = row['depth'] < avg_depth
-        is_strong  = row['mag']   > avg_mag
-        if   is_shallow and not is_strong: key = "dangkal_lemah"
-        elif is_shallow and     is_strong: key = "dangkal_kuat"
-        elif not is_shallow and not is_strong: key = "menengah_sedang"
-        else:                               key = "dalam_kuat"
-        palette = next(p for p in _HAZARD_PALETTE if p["key"] == key)
-        assigned[int(cluster_id)] = {
-            "label": f"Klaster {cluster_id}: {palette['label']}",
-            "color": palette["color"],
-            "desc":  palette["desc"],
-        }
-    return assigned
+    return {
+        0: {"label": "Cluster 0: Dangkal & Lemah", "color": _HAZARD_PALETTE[0]["color"], "desc": _HAZARD_PALETTE[0]["desc"]},
+        1: {"label": "Cluster 1: Dangkal & Kuat", "color": _HAZARD_PALETTE[1]["color"], "desc": _HAZARD_PALETTE[1]["desc"]},
+        2: {"label": "Cluster 2: Menengah & Sedang", "color": _HAZARD_PALETTE[2]["color"], "desc": _HAZARD_PALETTE[2]["desc"]},
+        3: {"label": "Cluster 3: Dalam & Kuat", "color": _HAZARD_PALETTE[3]["color"], "desc": _HAZARD_PALETTE[3]["desc"]}
+    }
 
 HAZARD_INFO = build_hazard_info(pd.DataFrame())  # placeholder; rebuilt on page load
 
@@ -323,9 +302,9 @@ elif menu == "Peta Zona Rawan Spasial (Ring of Fire)":
 elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
     st.title("Klasifikasi Profil Bahaya Seismik")
     st.write(
-        "Menggunakan algoritma **K-Means Clustering** (K=4), setiap kejadian gempa diklasifikasikan "
-        "berdasarkan dua parameter fisik utama: **kedalaman hiposenter** dan **magnitudo**. "
-        "Hasil klasifikasi menghasilkan 4 profil bahaya yang berbeda secara karakteristik."
+        "Menggunakan pendekatan **Klasifikasi Berbasis Aturan (Rule-Based Hazard Classification)**, setiap kejadian gempa "
+        "dikelompokkan berdasarkan dua parameter fisik utama: **kedalaman hiposenter** dan **magnitudo**. "
+        "Hasil klasifikasi menghasilkan 4 profil bahaya kustom yang berbeda secara karakteristik."
     )
     
     if hazard_df.empty:
@@ -425,6 +404,45 @@ elif menu == "Peta & Profil Bahaya Gempa (Hazard)":
 
         else:
             st.info("Tidak ada data untuk divisualisasikan.")
+        
+        # ============================================================
+        # SECTION 2: Peta Spasial Distribusi Bahaya Gempa (Geospatial Map)
+        # ============================================================
+        st.subheader("2. Peta Spasial Distribusi Bahaya Gempa")
+        st.caption(
+            "Peta interaktif sebaran lokasi kejadian gempa bumi berdasarkan kategori bahaya di seluruh dunia. "
+            "Pola titik merah di sekitar Indonesia menunjukkan wilayah rawan bencana (Ring of Fire) dengan bahaya tinggi."
+        )
+        sample_size_haz = min(3000, len(plot_data))
+        if sample_size_haz > 0:
+            map_data_haz = plot_data.sample(n=sample_size_haz, random_state=42)
+            # Map Initialization (center around Indonesia [0, 115])
+            m_haz = folium.Map(location=[0, 115], zoom_start=3, tiles="CartoDB positron")
+            
+            for _, row in map_data_haz.iterrows():
+                cluster = int(row['kmeans_cluster'])
+                info = HAZARD_INFO.get(cluster, {"label": "Unknown", "color": "#718096"})
+                color = info["color"]
+                
+                popup_text = f"""
+                <b>Lokasi:</b> {row['place']}<br>
+                <b>Negara:</b> {row['country']}<br>
+                <b>Magnitudo:</b> {row['mag']:.2f}<br>
+                <b>Kedalaman:</b> {row['depth']:.1f} km<br>
+                <b>Profil Bahaya:</b> {info['label']}
+                """
+                
+                folium.CircleMarker(
+                    location=[row['latitude'], row['longitude']],
+                    radius=max(3, row['mag'] * 1.5),
+                    color=color,
+                    fill=True,
+                    fill_color=color,
+                    fill_opacity=0.6,
+                    popup=folium.Popup(popup_text, max_width=300)
+                ).add_to(m_haz)
+                
+            st.components.v1.html(m_haz._repr_html_(), height=600)
         
 
 
